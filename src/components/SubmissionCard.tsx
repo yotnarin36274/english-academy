@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react';
 import type { Submission } from '@/lib/supabase';
 import type { GroupData } from '@/lib/testData';
 import { getLevelBadgeStyle } from '@/lib/testData';
-import { computeSkillResults, generateVerbalScript, generateLineReport } from '@/lib/reportGenerator';
+import { computeSkillResults, generateLineReport } from '@/lib/reportGenerator';
 import AnswerGrid from './AnswerGrid';
 import SkillBar from './SkillBar';
 
@@ -29,8 +29,7 @@ function timeAgo(dateStr: string): string {
 
 function avatarColor(nickname: string): string {
   const colors = ['#1D9E75', '#3B82F6', '#8B5CF6', '#F59E0B', '#EF4444', '#06B6D4', '#84CC16'];
-  const index = nickname.charCodeAt(0) % colors.length;
-  return colors[index];
+  return colors[nickname.charCodeAt(0) % colors.length];
 }
 
 type CopyState = 'idle' | 'copied';
@@ -42,33 +41,28 @@ export default function SubmissionCard({
   onToggle,
   isNew,
 }: SubmissionCardProps) {
-  const [scriptCopyState, setScriptCopyState] = useState<CopyState>('idle');
   const [lineCopyState, setLineCopyState] = useState<CopyState>('idle');
 
   const skillResults = computeSkillResults(submission, groupData);
+  const strongSkills = skillResults.filter((r) => r.isStrong);
+  const weakSkills = skillResults.filter((r) => !r.isStrong);
   const percent = Math.round((submission.score / submission.total) * 100);
   const levelStyle = getLevelBadgeStyle(submission.level);
 
-  const copyText = useCallback(
-    async (text: string, setter: (s: CopyState) => void) => {
-      try {
-        await navigator.clipboard.writeText(text);
-        setter('copied');
-        setTimeout(() => setter('idle'), 2000);
-      } catch {
-        // fallback for older browsers
-        const el = document.createElement('textarea');
-        el.value = text;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-        setter('copied');
-        setTimeout(() => setter('idle'), 2000);
-      }
-    },
-    []
-  );
+  const copyText = useCallback(async (text: string, setter: (s: CopyState) => void) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const el = document.createElement('textarea');
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand('copy');
+      document.body.removeChild(el);
+    }
+    setter('copied');
+    setTimeout(() => setter('idle'), 2000);
+  }, []);
 
   return (
     <div
@@ -81,7 +75,6 @@ export default function SubmissionCard({
         className="w-full text-left px-4 py-4 flex items-start gap-3 focus:outline-none"
         onClick={onToggle}
       >
-        {/* Avatar */}
         <div
           className="w-11 h-11 rounded-full flex items-center justify-center text-white font-bold text-lg flex-shrink-0"
           style={{ backgroundColor: avatarColor(submission.nickname) }}
@@ -89,7 +82,6 @@ export default function SubmissionCard({
           {submission.nickname.charAt(0).toUpperCase()}
         </div>
 
-        {/* Name + meta */}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-bold text-gray-900 text-base">{submission.nickname}</span>
@@ -101,10 +93,7 @@ export default function SubmissionCard({
             <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
               {submission.grade}
             </span>
-            <span
-              className="text-xs px-2 py-0.5 rounded-full font-semibold"
-              style={levelStyle}
-            >
+            <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={levelStyle}>
               {submission.level}
             </span>
             <span className="text-sm font-semibold text-gray-700">
@@ -114,7 +103,6 @@ export default function SubmissionCard({
           </div>
         </div>
 
-        {/* Time + chevron */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <span className="text-xs text-gray-400">{timeAgo(submission.created_at)}</span>
           <svg
@@ -131,7 +119,8 @@ export default function SubmissionCard({
       {/* Expanded content */}
       {isExpanded && (
         <div className="border-t border-gray-100 px-4 pb-4 pt-4 space-y-5">
-          {/* Answer grid */}
+
+          {/* Answer overview */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
               Answer Overview
@@ -140,6 +129,8 @@ export default function SubmissionCard({
               answers={submission.answers}
               answerKey={groupData.answerKey}
               totalQuestions={submission.total}
+              questions={groupData.questions}
+              skills={groupData.skills}
             />
           </div>
 
@@ -160,24 +151,67 @@ export default function SubmissionCard({
             </div>
           </div>
 
-          {/* Copy buttons */}
-          <div className="flex flex-col sm:flex-row gap-2 pt-1">
-            <button
-              onClick={() => copyText(generateVerbalScript(submission, groupData), setScriptCopyState)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200"
-              style={
-                scriptCopyState === 'copied'
-                  ? { backgroundColor: '#E1F5EE', borderColor: '#1D9E75', color: '#085041' }
-                  : { backgroundColor: 'white', borderColor: '#d1d5db', color: '#374151' }
-              }
-            >
-              <span>{scriptCopyState === 'copied' ? '✓' : '📋'}</span>
-              <span>{scriptCopyState === 'copied' ? 'คัดลอกแล้ว!' : 'คัดลอก Script พูดกับผู้ปกครอง'}</span>
-            </button>
+          {/* จุดเด่น-จุดพัฒนา-คำแนะนำ */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
+              📋 จุดเด่น-จุดพัฒนา-คำแนะนำ
+            </p>
+            <div className="space-y-3 text-sm">
 
+              {/* จุดเด่น */}
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">✅ จุดเด่น:</p>
+                {strongSkills.length > 0 ? (
+                  <ul className="space-y-1">
+                    {strongSkills.map((r) => (
+                      <li key={r.skill.key} className="text-gray-600">
+                        • <span className="font-medium">{r.skill.thaiLabel}</span>: {groupData.skillFeedback[r.skill.key].strong}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-600">• ทุกด้านอยู่ในระดับดีครับ</p>
+                )}
+              </div>
+
+              {/* จุดที่ต้องพัฒนา — only when there are weak skills */}
+              {weakSkills.length > 0 && (
+                <div>
+                  <p className="font-semibold text-gray-700 mb-1">📈 จุดที่ต้องพัฒนา:</p>
+                  <ul className="space-y-1">
+                    {weakSkills.map((r) => (
+                      <li key={r.skill.key} className="text-gray-600">
+                        • <span className="font-medium">{r.skill.thaiLabel}</span>: {groupData.skillFeedback[r.skill.key].weakTip}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* คำแนะนำ */}
+              <div>
+                <p className="font-semibold text-gray-700 mb-1">💡 คำแนะนำ:</p>
+                {weakSkills.length > 0 ? (
+                  <ul className="space-y-1">
+                    {weakSkills.map((r) => (
+                      <li key={r.skill.key} className="text-gray-600">
+                        • {groupData.skillFeedback[r.skill.key].weakTip}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-600">• รักษาระดับที่ดีไว้และเพิ่มการอ่าน English texts ให้หลากหลายขึ้นครับ</p>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* LINE report copy button */}
+          <div className="pt-1">
             <button
               onClick={() => copyText(generateLineReport(submission, groupData), setLineCopyState)}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200"
               style={
                 lineCopyState === 'copied'
                   ? { backgroundColor: '#E1F5EE', borderColor: '#1D9E75', color: '#085041' }
@@ -188,6 +222,7 @@ export default function SubmissionCard({
               <span>{lineCopyState === 'copied' ? 'คัดลอกแล้ว!' : 'คัดลอก รายงาน LINE (ละเอียด)'}</span>
             </button>
           </div>
+
         </div>
       )}
     </div>
