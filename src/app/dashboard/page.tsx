@@ -141,6 +141,12 @@ export default function DashboardPage() {
     });
   };
 
+  const handleDelete = async (id: string) => {
+    await supabase.from('submissions').delete().eq('id', id);
+    setSubmissions((prev) => prev.filter((s) => s.id !== id));
+    setExpandedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+  };
+
   const filtered = submissions.filter(
     (s) => groupFilter === 'all' || s.group_key === groupFilter
   );
@@ -260,6 +266,7 @@ export default function DashboardPage() {
                   isExpanded={expandedIds.has(submission.id)}
                   onToggle={() => toggleExpand(submission.id)}
                   isNew={newIds.has(submission.id)}
+                  onDelete={() => handleDelete(submission.id)}
                 />
               );
             })}

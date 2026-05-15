@@ -14,6 +14,7 @@ interface SubmissionCardProps {
   isExpanded: boolean;
   onToggle: () => void;
   isNew?: boolean;
+  onDelete?: () => Promise<void>;
 }
 
 function timeAgo(dateStr: string): string {
@@ -40,8 +41,10 @@ export default function SubmissionCard({
   isExpanded,
   onToggle,
   isNew,
+  onDelete,
 }: SubmissionCardProps) {
   const [lineCopyState, setLineCopyState] = useState<CopyState>('idle');
+  const [deleteState, setDeleteState] = useState<'idle' | 'confirm' | 'deleting'>('idle');
 
   const skillResults = computeSkillResults(submission, groupData);
   const strongSkills = skillResults.filter((r) => r.isStrong);
@@ -222,6 +225,43 @@ export default function SubmissionCard({
               <span>{lineCopyState === 'copied' ? 'คัดลอกแล้ว!' : 'คัดลอก รายงาน LINE (ละเอียด)'}</span>
             </button>
           </div>
+
+          {/* Delete */}
+          {onDelete && (
+            <div className="pt-1 border-t border-gray-100">
+              {deleteState === 'idle' && (
+                <button
+                  onClick={() => setDeleteState('confirm')}
+                  className="text-xs text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                >
+                  🗑 ลบผลการทดสอบนี้
+                </button>
+              )}
+              {deleteState === 'confirm' && (
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-gray-600">ยืนยันการลบ?</span>
+                  <button
+                    onClick={async () => {
+                      setDeleteState('deleting');
+                      await onDelete();
+                    }}
+                    className="text-xs px-3 py-1 rounded-lg bg-red-500 text-white font-medium hover:bg-red-600 transition-colors"
+                  >
+                    ลบ
+                  </button>
+                  <button
+                    onClick={() => setDeleteState('idle')}
+                    className="text-xs px-3 py-1 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    ยกเลิก
+                  </button>
+                </div>
+              )}
+              {deleteState === 'deleting' && (
+                <span className="text-xs text-gray-400">กำลังลบ...</span>
+              )}
+            </div>
+          )}
 
         </div>
       )}
