@@ -62,7 +62,7 @@ export default function HomePage() {
       {/* Hero */}
       <div className="text-center mb-10">
         <h1 className="text-4xl font-extrabold text-gray-900 tracking-tight">English Academy</h1>
-        <p className="mt-2 text-gray-500 text-base">
+        <p className="mt-2 text-gray-700 text-base">
           ทดสอบวัดระดับภาษาอังกฤษ&nbsp;/ English Level Assessment
         </p>
       </div>
@@ -84,7 +84,7 @@ export default function HomePage() {
                     <span className="text-2xl">{style.icon}</span>
                     <span className="text-xl font-bold text-gray-800">{group.label}</span>
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-gray-600 mt-1">
                     {group.totalQuestions} ข้อ &nbsp;·&nbsp; {group.timeMinutes} นาที
                   </p>
                 </div>
@@ -131,7 +131,7 @@ export default function HomePage() {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-800 mb-1">
                   ชื่อเล่น <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -139,33 +139,33 @@ export default function HomePage() {
                   value={nickname}
                   onChange={(e) => setNickname(e.target.value)}
                   placeholder="เช่น มิน, เจมส์"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-800 mb-1">
                   ชื่อ-นามสกุล{' '}
-                  <span className="text-gray-400 font-normal">(ไม่บังคับ)</span>
+                  <span className="text-gray-500 font-normal">(ไม่บังคับ)</span>
                 </label>
                 <input
                   type="text"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   placeholder="ชื่อ-นามสกุล (ไม่บังคับ)"
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-800 mb-1">
                   ชั้นเรียน <span className="text-red-500">*</span>
                 </label>
                 <select
                   value={grade}
                   onChange={(e) => setGrade(e.target.value)}
-                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base bg-white focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
+                  className="w-full border border-gray-300 rounded-xl px-4 py-3 text-base text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
                 >
                   <option value="">เลือกชั้นเรียน</option>
                   {GROUPS[selectedGroup].grades.map((g) => (
