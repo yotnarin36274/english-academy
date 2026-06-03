@@ -28,7 +28,7 @@ function TestPage() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const storageKey = `testAnswers_${groupKey}`;
 
@@ -63,7 +63,7 @@ function TestPage() {
 
   const selectOption = useCallback(
     (option: string) => {
-      if (submitting || submitted) return;
+      if (submitting) return;
       setSelectedOption(option);
       const updated = { ...answers, [String(currentIndex + 1)]: option };
       setAnswers(updated);
@@ -84,9 +84,9 @@ function TestPage() {
   }, [selectedOption, currentIndex, answers]);
 
   const handleSubmit = useCallback(async () => {
-    if (!selectedOption || submitting || submitted) return;
+    if (!selectedOption || submitting) return;
     setSubmitting(true);
-    setSubmitted(true);
+    setSubmitError(null);
 
     const finalAnswers = { ...answers, [String(currentIndex + 1)]: selectedOption };
 
@@ -126,15 +126,14 @@ function TestPage() {
       }
 
       router.push('/done');
-    } catch {
+    } catch (err) {
+      console.error('Submit error:', err);
       setSubmitting(false);
-      setSubmitted(false);
-      alert('เกิดข้อผิดพลาดในการส่งคำตอบ กรุณาลองใหม่อีกครั้งครับ');
+      setSubmitError('เกิดข้อผิดพลาดในการส่งคำตอบ กรุณาลองใหม่อีกครั้งครับ');
     }
   }, [
     selectedOption,
     submitting,
-    submitted,
     answers,
     currentIndex,
     groupData,
@@ -226,6 +225,11 @@ function TestPage() {
       {/* Bottom action */}
       <div className="sticky bottom-0 bg-white border-t border-gray-200 px-4 py-4">
         <div className="max-w-lg mx-auto">
+          {submitError && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-xl px-4 py-2 mb-3 text-center">
+              {submitError}
+            </p>
+          )}
           {!isLast ? (
             <button
               onClick={goNext}
@@ -241,7 +245,7 @@ function TestPage() {
           ) : (
             <button
               onClick={handleSubmit}
-              disabled={!selectedOption || submitting || submitted}
+              disabled={!selectedOption || submitting}
               className="w-full py-4 rounded-2xl text-base font-bold text-white transition-all flex items-center justify-center gap-2"
               style={{
                 backgroundColor: selectedOption && !submitting ? '#1D9E75' : '#d1d5db',
