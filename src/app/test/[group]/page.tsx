@@ -73,7 +73,7 @@ function TestPage() {
         // ignore
       }
     },
-    [submitting, submitted, answers, currentIndex, storageKey]
+    [submitting, answers, currentIndex, storageKey]
   );
 
   const goNext = useCallback(() => {
