@@ -111,14 +111,9 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
       reviewed_at: new Date().toISOString(),
     };
 
-    if (existing) {
-      const { error } = await db().from('feedback').update(fbData).eq('id', existing.id);
-      if (error) { setSaveError(`บันทึกไม่สำเร็จ: ${error.message}`); setSaving(false); return; }
-    } else {
-      const { error: fbErr } = await db().from('feedback').insert(fbData);
-      if (fbErr) { setSaveError(`บันทึกไม่สำเร็จ: ${fbErr.message}`); setSaving(false); return; }
-      await db().from('homework_submissions').update({ status: 'reviewed' }).eq('id', sub.id);
-    }
+    const { error: fbErr } = await db().from('feedback').upsert(fbData, { onConflict: 'submission_id' });
+    if (fbErr) { setSaveError(`บันทึกไม่สำเร็จ: ${fbErr.message}`); setSaving(false); return; }
+    await db().from('homework_submissions').update({ status: 'reviewed' }).eq('id', sub.id);
 
     // LINE Notify
     const token = sub.students.parent_line_notify_token;
@@ -146,7 +141,7 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
         </div>
         <button onClick={save} disabled={saving}
           className="bg-[#1D9E75] hover:bg-green-700 disabled:opacity-50 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors">
-          {saving ? '...' : existing ? 'อัพเดท' : 'บันทึก'}
+          {saving ? '...' : existing ? '💾 อัพเดท' : '💾 บันทึก'}
         </button>
       </div>
       <div>
@@ -160,7 +155,7 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
         <p className="text-xs text-green-600 font-medium">✅ ส่ง LINE แจ้งผู้ปกครองแล้ว</p>
       )}
       {sub.students.parent_line_notify_token && !notifySent && (
-        <p className="text-xs text-gray-400">จะส่ง LINE แจ้งผู้ปกครองอัตโนมัติเมื่อกด{existing ? 'อัพเดท' : 'บันทึก'}</p>
+        <p className="text-xs text-gray-400">จะส่ง LINE แจ้งผู้ปกครองอัตโนมัติเมื่อกดบันทึก</p>
       )}
     </div>
   );
