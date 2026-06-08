@@ -46,6 +46,7 @@ export interface Database {
           description: string | null;
           due_date: string | null;
           target_groups: string[];
+          target_student_ids: string[];
           max_score: number;
           is_active: boolean;
         };

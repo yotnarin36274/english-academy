@@ -39,9 +39,12 @@ export default function StudentHomeworkPage() {
       .eq('is_active', true)
       .order('created_at', { ascending: false });
 
-    const filtered = (asgList ?? []).filter(
-      (a: Assignment) => a.target_groups.length === 0 || a.target_groups.includes(stu.group_key)
-    );
+    const filtered = (asgList ?? []).filter((a: Assignment) => {
+      const noTarget = a.target_groups.length === 0 && (a.target_student_ids ?? []).length === 0;
+      return noTarget
+        || a.target_groups.includes(stu.group_key)
+        || (a.target_student_ids ?? []).includes(stu.id);
+    });
 
     const { data: subs } = await db()
       .from('homework_submissions')
