@@ -11,6 +11,51 @@ interface ProgressItem {
   feedback: FeedbackRow | null;
 }
 
+function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' {
+  const u = url.toLowerCase().split('?')[0];
+  if (/\.(jpg|jpeg|png|gif|webp|heic|heif|bmp)$/.test(u)) return 'image';
+  if (/\.(mp4|mov|webm|avi|m4v)$/.test(u)) return 'video';
+  if (/\.(mp3|m4a|wav|aac|ogg)$/.test(u)) return 'audio';
+  if (/\.pdf$/.test(u)) return 'pdf';
+  if (/\.(doc|docx)$/.test(u)) return 'word';
+  return 'other';
+}
+const FILE_ICON: Record<string, string> = { image: '🖼️', video: '🎥', audio: '🎵', pdf: '📄', word: '📝', other: '📁' };
+const FILE_LABEL: Record<string, string> = { image: 'รูปภาพ', video: 'วิดีโอ', audio: 'เสียง', pdf: 'PDF', word: 'Word', other: 'ไฟล์' };
+
+function ParentFileItem({ url }: { url: string }) {
+  const type = guessType(url);
+  const name = decodeURIComponent(url.split('/').pop()?.split('?')[0] ?? 'ไฟล์');
+  if (type === 'image') return (
+    <a href={url} target="_blank" rel="noreferrer" className="block hover:opacity-80 transition-opacity">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="" className="h-20 w-20 object-cover rounded-xl border-2 border-gray-200" />
+    </a>
+  );
+  if (type === 'video') return (
+    <div className="rounded-xl overflow-hidden border border-gray-200 bg-black">
+      <video src={url} controls className="h-32 max-w-full" />
+    </div>
+  );
+  if (type === 'audio') return (
+    <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 w-full">
+      <span className="text-xl shrink-0">🎵</span>
+      <audio src={url} controls className="flex-1 h-8" />
+    </div>
+  );
+  return (
+    <a href={url} target="_blank" rel="noreferrer"
+      className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors text-sm">
+      <span className="text-xl">{FILE_ICON[type]}</span>
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-gray-700 truncate">{name}</p>
+        <p className="text-xs text-gray-400">{FILE_LABEL[type]}</p>
+      </div>
+      <span className="text-blue-500 text-xs shrink-0">เปิด →</span>
+    </a>
+  );
+}
+
 function ScoreBar({ score, max }: { score: number; max: number }) {
   const pct = Math.round((score / max) * 100);
   const color = pct >= 80 ? '#1D9E75' : pct >= 60 ? '#EF9F27' : '#ef4444';
@@ -201,9 +246,29 @@ export default function ParentPortalPage() {
                   </div>
 
                   {sub && (
-                    <p className="text-xs text-gray-400 mt-1">
-                      ส่งเมื่อ {new Date(sub.submitted_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </p>
+                    <>
+                      <p className="text-xs text-gray-400 mt-1">
+                        ส่งเมื่อ {new Date(sub.submitted_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+
+                      {/* Submitted files */}
+                      {sub.image_urls?.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs font-medium text-gray-500 mb-2">📎 ไฟล์ที่ส่ง</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(sub.image_urls as string[]).map((url, i) => (
+                              <ParentFileItem key={i} url={url} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {sub.note && (
+                        <p className="text-sm text-gray-500 bg-blue-50 rounded-xl p-3 mt-2 text-xs">
+                          📝 หมายเหตุ: {sub.note}
+                        </p>
+                      )}
+                    </>
                   )}
 
                   {fb && (
