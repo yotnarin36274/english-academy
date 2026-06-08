@@ -94,6 +94,7 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
   const [score, setScore] = useState(existing?.score?.toString() ?? '');
   const [comment, setComment] = useState(existing?.comment ?? '');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [notifySent, setNotifySent] = useState(false);
   const [saveError, setSaveError] = useState('');
 
@@ -129,6 +130,16 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
     onDone();
   }
 
+  async function deleteFeedback() {
+    if (!existing) return;
+    if (!window.confirm('ลบคะแนนและ feedback นี้?\nงานจะกลับเป็นสถานะ "รอตรวจ"')) return;
+    setDeleting(true);
+    await db().from('feedback').delete().eq('id', existing.id);
+    await db().from('homework_submissions').update({ status: 'pending' }).eq('id', sub.id);
+    setDeleting(false);
+    onDone();
+  }
+
   return (
     <div className="bg-gray-50 rounded-xl p-4 mt-3 space-y-3">
       <div className="flex gap-3 items-end">
@@ -157,6 +168,14 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
       {sub.students.parent_line_notify_token && !notifySent && (
         <p className="text-xs text-gray-400">จะส่ง LINE แจ้งผู้ปกครองอัตโนมัติเมื่อกดบันทึก</p>
       )}
+      {existing && (
+        <div className="flex justify-end pt-1">
+          <button onClick={deleteFeedback} disabled={deleting}
+            className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50 transition-colors">
+            {deleting ? 'กำลังลบ...' : '🗑️ ลบ feedback นี้'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -178,11 +197,24 @@ export default function TeacherHomeworkPage() {
   }, []);
 
   async function load() {
-    const { data } = await db()
+    const { data: subsRaw } = await db()
       .from('homework_submissions')
-      .select('*, students(*), assignments(*), feedback(*)')
+      .select('*, students(*), assignments(*)')
       .order('submitted_at', { ascending: false });
-    setSubmissions((data ?? []) as SubWithJoins[]);
+
+    const allSubs = (subsRaw ?? []) as SubWithJoins[];
+    let fbMap = new Map<string, FeedbackRow>();
+    if (allSubs.length > 0) {
+      const { data: fbAll } = await db()
+        .from('feedback')
+        .select('*')
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .in('submission_id', allSubs.map((s: any) => s.id));
+      (fbAll ?? []).forEach((f: FeedbackRow) => fbMap.set(f.submission_id, f));
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const merged = allSubs.map((s: any) => ({ ...s, feedback: fbMap.has(s.id) ? [fbMap.get(s.id)!] : [] }));
+    setSubmissions(merged as SubWithJoins[]);
     setLoading(false);
   }
 
@@ -272,7 +304,7 @@ export default function TeacherHomeworkPage() {
                     </p>
                   )}
 
-                  <GradePanel sub={sub} onDone={load} />
+                  <GradePanel key={`${sub.id}-${sub.feedback?.[0]?.id ?? 'new'}`} sub={sub} onDone={load} />
                 </div>
               )}
             </div>

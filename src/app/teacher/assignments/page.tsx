@@ -128,6 +128,13 @@ export default function TeacherAssignmentsPage() {
     load();
   }
 
+  async function deleteAssignment(id: string) {
+    if (!window.confirm('ลบงานนี้?\nการส่งงานและ feedback ทั้งหมดที่เกี่ยวข้องจะถูกลบด้วย')) return;
+    const { error } = await db().from('assignments').delete().eq('id', id);
+    if (error) { alert('ลบไม่สำเร็จ: ' + error.message); return; }
+    load();
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
@@ -323,10 +330,16 @@ export default function TeacherAssignmentsPage() {
                     )}
                   </div>
                 </div>
-                <button onClick={() => toggleActive(a)}
-                  className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${a.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                  {a.is_active ? '✅ เปิดอยู่' : '🔒 ปิดแล้ว'}
-                </button>
+                <div className="flex flex-col gap-1.5 shrink-0">
+                  <button onClick={() => toggleActive(a)}
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${a.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    {a.is_active ? '✅ เปิดอยู่' : '🔒 ปิดแล้ว'}
+                  </button>
+                  <button onClick={() => deleteAssignment(a.id)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors">
+                    🗑️ ลบ
+                  </button>
+                </div>
               </div>
             </div>
           );

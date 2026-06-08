@@ -295,7 +295,7 @@ export default function ParentPortalPage() {
                         </>
                       )}
                       {fb.comment && (
-                        <p className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3 mt-2">
+                        <p className="text-sm text-gray-600 bg-gray-50 rounded-xl p-3 mt-2 whitespace-pre-wrap">
                           💬 {fb.comment}
                         </p>
                       )}

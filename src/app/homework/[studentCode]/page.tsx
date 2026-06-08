@@ -194,7 +194,7 @@ export default function StudentHomeworkPage() {
                       )}
                     </div>
                     {fb.comment && (
-                      <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg p-3">
+                      <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg p-3 whitespace-pre-wrap">
                         💬 {fb.comment}
                       </p>
                     )}
