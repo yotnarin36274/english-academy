@@ -5,6 +5,64 @@ import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import type { Student, Assignment } from '@/lib/db';
 
+const ACCEPTED = [
+  'image/*',
+  'video/mp4,video/quicktime,video/webm,video/x-msvideo',
+  'audio/mpeg,audio/mp4,audio/wav,audio/aac,audio/ogg,audio/x-m4a',
+  'application/pdf',
+  'application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+].join(',');
+
+const MAX_FILES = 5;
+const MAX_MB = 45; // under Supabase 50 MB free limit
+
+type FileEntry = { file: File; preview: string | null; type: 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' };
+
+function fileType(f: File): FileEntry['type'] {
+  if (f.type.startsWith('image/')) return 'image';
+  if (f.type.startsWith('video/')) return 'video';
+  if (f.type.startsWith('audio/')) return 'audio';
+  if (f.type === 'application/pdf') return 'pdf';
+  if (f.type.includes('word') || f.name.endsWith('.doc') || f.name.endsWith('.docx')) return 'word';
+  return 'other';
+}
+
+const TYPE_ICON: Record<FileEntry['type'], string> = {
+  image: '🖼️', video: '🎥', audio: '🎵', pdf: '📄', word: '📝', other: '📁',
+};
+const TYPE_LABEL: Record<FileEntry['type'], string> = {
+  image: 'รูปภาพ', video: 'วิดีโอ', audio: 'ไฟล์เสียง', pdf: 'PDF', word: 'Word', other: 'ไฟล์',
+};
+
+function FileThumbnail({ entry, onRemove }: { entry: FileEntry; onRemove: () => void }) {
+  return (
+    <div className="relative group">
+      <div className="w-24 h-24 rounded-xl border-2 border-gray-200 overflow-hidden bg-gray-50 flex flex-col items-center justify-center">
+        {entry.type === 'image' && entry.preview ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={entry.preview} alt="" className="w-full h-full object-cover" />
+        ) : entry.type === 'video' && entry.preview ? (
+          <video src={entry.preview} className="w-full h-full object-cover" muted playsInline />
+        ) : (
+          <>
+            <span className="text-3xl">{TYPE_ICON[entry.type]}</span>
+            <span className="text-xs text-gray-500 mt-1 px-1 text-center leading-tight">{entry.file.name.length > 12 ? entry.file.name.slice(0, 10) + '…' : entry.file.name}</span>
+          </>
+        )}
+      </div>
+      <div className="absolute -bottom-1 left-0 right-0 text-center">
+        <span className="text-xs bg-gray-700 text-white px-1.5 py-0.5 rounded-full">
+          {TYPE_LABEL[entry.type]}
+        </span>
+      </div>
+      <button
+        onClick={onRemove}
+        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold shadow"
+      >×</button>
+    </div>
+  );
+}
+
 export default function SubmitHomeworkPage() {
   const { studentCode, assignmentId } = useParams<{ studentCode: string; assignmentId: string }>();
   const router = useRouter();
@@ -12,10 +70,10 @@ export default function SubmitHomeworkPage() {
 
   const [student, setStudent] = useState<Student | null>(null);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [files, setFiles] = useState<File[]>([]);
+  const [entries, setEntries] = useState<FileEntry[]>([]);
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
   const [error, setError] = useState('');
 
@@ -26,12 +84,10 @@ export default function SubmitHomeworkPage() {
       if (!stu) { router.replace('/homework'); return; }
       setStudent(stu);
 
-      const { data: asg } = await db().from('assignments').select('*')
-        .eq('id', assignmentId).single();
+      const { data: asg } = await db().from('assignments').select('*').eq('id', assignmentId).single();
       if (!asg) { router.replace(`/homework/${studentCode}`); return; }
       setAssignment(asg);
 
-      // Check already submitted
       const { data: existing } = await db().from('homework_submissions')
         .select('id').eq('student_id', stu.id).eq('assignment_id', assignmentId).single();
       if (existing) { router.replace(`/homework/${studentCode}`); }
@@ -41,41 +97,70 @@ export default function SubmitHomeworkPage() {
   }, []);
 
   function handleFiles(e: React.ChangeEvent<HTMLInputElement>) {
-    const selected = Array.from(e.target.files ?? []).slice(0, 5 - files.length);
+    const selected = Array.from(e.target.files ?? []);
     if (!selected.length) return;
-    setFiles(prev => [...prev, ...selected]);
-    selected.forEach(f => {
-      const reader = new FileReader();
-      reader.onload = ev => setPreviews(prev => [...prev, ev.target!.result as string]);
-      reader.readAsDataURL(f);
+
+    const remaining = MAX_FILES - entries.length;
+    const toAdd = selected.slice(0, remaining);
+    const oversized = toAdd.filter(f => f.size > MAX_MB * 1024 * 1024);
+
+    if (oversized.length) {
+      setError(`ไฟล์บางไฟล์ใหญ่เกิน ${MAX_MB} MB กรุณาลดขนาดก่อนครับ`);
+      return;
+    }
+    setError('');
+
+    toAdd.forEach(file => {
+      const type = fileType(file);
+      if (type === 'image' || type === 'video') {
+        const url = URL.createObjectURL(file);
+        setEntries(prev => [...prev, { file, preview: url, type }]);
+      } else {
+        setEntries(prev => [...prev, { file, preview: null, type }]);
+      }
+    });
+
+    // Reset input so same file can be re-selected
+    e.target.value = '';
+  }
+
+  function removeEntry(i: number) {
+    setEntries(prev => {
+      const copy = [...prev];
+      if (copy[i].preview) URL.revokeObjectURL(copy[i].preview!);
+      copy.splice(i, 1);
+      return copy;
     });
   }
 
-  function removeFile(i: number) {
-    setFiles(prev => prev.filter((_, idx) => idx !== i));
-    setPreviews(prev => prev.filter((_, idx) => idx !== i));
-  }
-
   async function handleSubmit() {
-    if (!files.length || !student || !assignment) return;
+    if (!entries.length || !student || !assignment) return;
     setSubmitting(true);
     setError('');
+    setProgress(0);
 
-    const imageUrls: string[] = [];
-    for (const file of files) {
-      const path = `${student.id}/${assignmentId}/${Date.now()}-${file.name}`;
+    const fileUrls: string[] = [];
+    for (let i = 0; i < entries.length; i++) {
+      const { file } = entries[i];
+      const ext = file.name.split('.').pop() ?? 'bin';
+      const path = `${student.id}/${assignmentId}/${Date.now()}-${i}.${ext}`;
       const { data, error: upErr } = await db().storage
         .from('homework-images')
-        .upload(path, file, { upsert: true });
-      if (upErr || !data) { setError('อัพโหลดรูปไม่สำเร็จ กรุณาลองใหม่ครับ'); setSubmitting(false); return; }
+        .upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr || !data) {
+        setError('อัพโหลดไฟล์ไม่สำเร็จ กรุณาลองใหม่ครับ');
+        setSubmitting(false);
+        return;
+      }
       const { data: urlData } = db().storage.from('homework-images').getPublicUrl(data.path);
-      imageUrls.push(urlData.publicUrl);
+      fileUrls.push(urlData.publicUrl);
+      setProgress(Math.round(((i + 1) / entries.length) * 100));
     }
 
     const { error: insertErr } = await db().from('homework_submissions').insert({
       student_id: student.id,
       assignment_id: assignment.id,
-      image_urls: imageUrls,
+      image_urls: fileUrls,
       note: note.trim() || null,
       status: 'pending',
     });
@@ -102,6 +187,8 @@ export default function SubmitHomeworkPage() {
     );
   }
 
+  const totalMB = entries.reduce((s, e) => s + e.file.size, 0) / (1024 * 1024);
+
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-blue-600 text-white px-4 py-4">
@@ -121,44 +208,51 @@ export default function SubmitHomeworkPage() {
           </div>
         )}
 
-        {/* Image upload area */}
+        {/* File area */}
         <div>
-          <p className="text-sm font-medium text-gray-700 mb-2">
-            รูปการบ้าน <span className="text-gray-400">(สูงสุด 5 รูป)</span>
-          </p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-gray-700">
+              ไฟล์งาน <span className="text-gray-400">(สูงสุด {MAX_FILES} ไฟล์ / ไฟล์ละไม่เกิน {MAX_MB} MB)</span>
+            </p>
+            {entries.length > 0 && (
+              <span className="text-xs text-gray-400">{entries.length}/{MAX_FILES} · {totalMB.toFixed(1)} MB</span>
+            )}
+          </div>
 
-          {previews.length > 0 && (
-            <div className="flex flex-wrap gap-3 mb-3">
-              {previews.map((src, i) => (
-                <div key={i} className="relative">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={src} alt="" className="w-24 h-24 object-cover rounded-xl border-2 border-gray-200" />
-                  <button
-                    onClick={() => removeFile(i)}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
+          {/* Type badges */}
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {(['image','video','audio','pdf','word'] as const).map(t => (
+              <span key={t} className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                {TYPE_ICON[t]} {TYPE_LABEL[t]}
+              </span>
+            ))}
+          </div>
+
+          {/* Thumbnails */}
+          {entries.length > 0 && (
+            <div className="flex flex-wrap gap-4 mb-4">
+              {entries.map((entry, i) => (
+                <FileThumbnail key={i} entry={entry} onRemove={() => removeEntry(i)} />
               ))}
             </div>
           )}
 
-          {files.length < 5 && (
+          {/* Add button */}
+          {entries.length < MAX_FILES && (
             <>
               <button
                 onClick={() => fileRef.current?.click()}
-                className="w-full border-2 border-dashed border-blue-300 rounded-xl py-8 flex flex-col items-center gap-2 text-blue-500 hover:bg-blue-50 transition-colors"
+                className="w-full border-2 border-dashed border-blue-300 rounded-xl py-7 flex flex-col items-center gap-2 text-blue-500 hover:bg-blue-50 transition-colors"
               >
-                <span className="text-3xl">📷</span>
-                <span className="font-medium">ถ่ายรูป / เลือกรูปจากคลัง</span>
-                <span className="text-sm text-gray-400">ยังเพิ่มได้อีก {5 - files.length} รูป</span>
+                <span className="text-3xl">📎</span>
+                <span className="font-medium">แนบไฟล์ / ถ่ายรูป</span>
+                <span className="text-xs text-gray-400">รูป · วิดีโอ · เสียง · PDF · Word</span>
+                <span className="text-xs text-gray-400">ยังเพิ่มได้อีก {MAX_FILES - entries.length} ไฟล์</span>
               </button>
               <input
                 ref={fileRef}
                 type="file"
-                accept="image/*"
-                capture="environment"
+                accept={ACCEPTED}
                 multiple
                 className="hidden"
                 onChange={handleFiles}
@@ -167,7 +261,7 @@ export default function SubmitHomeworkPage() {
           )}
         </div>
 
-        {/* Optional note */}
+        {/* Note */}
         <div>
           <label className="text-sm font-medium text-gray-700">
             หมายเหตุ <span className="text-gray-400">(ไม่บังคับ)</span>
@@ -182,12 +276,19 @@ export default function SubmitHomeworkPage() {
 
         {error && <p className="text-red-500 text-sm text-center">{error}</p>}
 
+        {/* Progress bar */}
+        {submitting && progress > 0 && progress < 100 && (
+          <div className="w-full bg-gray-200 rounded-full h-2">
+            <div className="bg-blue-600 h-2 rounded-full transition-all" style={{ width: `${progress}%` }} />
+          </div>
+        )}
+
         <button
           onClick={handleSubmit}
-          disabled={!files.length || submitting}
+          disabled={!entries.length || submitting}
           className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-4 rounded-2xl text-lg transition-colors"
         >
-          {submitting ? 'กำลังส่ง...' : '📤 ส่งการบ้าน'}
+          {submitting ? `กำลังอัพโหลด... ${progress}%` : '📤 ส่งการบ้าน'}
         </button>
       </div>
     </main>

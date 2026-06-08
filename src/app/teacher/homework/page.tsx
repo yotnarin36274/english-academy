@@ -11,13 +11,70 @@ interface SubWithJoins extends HomeworkSubmission {
   feedback: FeedbackRow[];
 }
 
-function ImageModal({ urls, onClose }: { urls: string[]; onClose: () => void }) {
+function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' {
+  const u = url.toLowerCase().split('?')[0];
+  if (/\.(jpg|jpeg|png|gif|webp|heic|heif|bmp|svg)$/.test(u)) return 'image';
+  if (/\.(mp4|mov|webm|avi|mkv|m4v)$/.test(u)) return 'video';
+  if (/\.(mp3|m4a|wav|aac|ogg|flac)$/.test(u)) return 'audio';
+  if (/\.pdf$/.test(u)) return 'pdf';
+  if (/\.(doc|docx)$/.test(u)) return 'word';
+  return 'other';
+}
+const TYPE_ICON: Record<string, string> = { image:'🖼️', video:'🎥', audio:'🎵', pdf:'📄', word:'📝', other:'📁' };
+
+function FilePreview({ url }: { url: string }) {
+  const type = guessType(url);
+  const filename = decodeURIComponent(url.split('/').pop()?.split('?')[0] ?? 'ไฟล์');
+  if (type === 'image') return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border" />
+  );
+  if (type === 'video') return (
+    <video src={url} className="w-20 h-20 object-cover rounded-xl border bg-black" muted />
+  );
+  if (type === 'audio') return (
+    <div className="flex flex-col items-center gap-1">
+      <span className="text-3xl">🎵</span>
+      <audio src={url} controls className="w-32 h-8" />
+    </div>
+  );
+  return (
+    <a href={url} target="_blank" rel="noreferrer"
+      className="flex flex-col items-center gap-1 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors">
+      <span className="text-2xl">{TYPE_ICON[type]}</span>
+      <span className="text-xs text-gray-600 max-w-[80px] text-center truncate">{filename}</span>
+      <span className="text-xs text-blue-500">เปิดดู</span>
+    </a>
+  );
+}
+
+function FileModal({ urls, onClose }: { urls: string[]; onClose: () => void }) {
   const [idx, setIdx] = useState(0);
+  const url = urls[idx];
+  const type = guessType(url);
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={onClose}>
       <div className="relative max-w-2xl w-full" onClick={e => e.stopPropagation()}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={urls[idx]} alt="" className="w-full rounded-2xl max-h-[80vh] object-contain bg-black" />
+        {type === 'image' ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt="" className="w-full rounded-2xl max-h-[80vh] object-contain bg-black" />
+        ) : type === 'video' ? (
+          <video src={url} controls autoPlay className="w-full rounded-2xl max-h-[80vh] bg-black" />
+        ) : type === 'audio' ? (
+          <div className="bg-white rounded-2xl p-8 flex flex-col items-center gap-4">
+            <span className="text-5xl">🎵</span>
+            <audio src={url} controls autoPlay className="w-full" />
+          </div>
+        ) : (
+          <div className="bg-white rounded-2xl p-8 text-center">
+            <span className="text-5xl">{TYPE_ICON[type]}</span>
+            <p className="mt-3 text-gray-700 text-sm break-all">{decodeURIComponent(url.split('/').pop() ?? '')}</p>
+            <a href={url} target="_blank" rel="noreferrer"
+              className="mt-4 inline-block bg-blue-600 text-white px-6 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+              เปิดไฟล์ →
+            </a>
+          </div>
+        )}
         {urls.length > 1 && (
           <div className="flex justify-center gap-3 mt-3">
             {urls.map((_, i) => (
@@ -109,6 +166,7 @@ export default function TeacherHomeworkPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed'>('pending');
   const [lightbox, setLightbox] = useState<string[] | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -136,7 +194,7 @@ export default function TeacherHomeworkPage() {
 
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
-      {lightbox && <ImageModal urls={lightbox} onClose={() => setLightbox(null)} />}
+      {lightbox && <FileModal urls={lightbox} onClose={() => setLightbox(null)} />}
 
       {/* Header */}
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
@@ -198,11 +256,11 @@ export default function TeacherHomeworkPage() {
                 <div className="px-4 pb-4 border-t border-gray-50">
                   {/* Images */}
                   {sub.image_urls?.length > 0 && (
-                    <div className="flex gap-2 mt-3 flex-wrap">
+                    <div className="flex gap-3 mt-3 flex-wrap items-end">
                       {sub.image_urls.map((url, i) => (
-                        <button key={i} onClick={() => setLightbox(sub.image_urls)}>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={url} alt="" className="w-20 h-20 object-cover rounded-xl border hover:opacity-80 transition-opacity" />
+                        <button key={i} onClick={() => setLightbox(sub.image_urls)}
+                          className="hover:opacity-80 transition-opacity">
+                          <FilePreview url={url} />
                         </button>
                       ))}
                     </div>
