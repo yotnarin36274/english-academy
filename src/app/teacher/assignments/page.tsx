@@ -81,7 +81,11 @@ export default function TeacherAssignmentsPage() {
       is_active: true,
     }).select().single();
 
-    if (error || !asg) { setSaving(false); return; }
+    if (error || !asg) {
+      setNotifyStatus(`❌ เกิดข้อผิดพลาด: ${error?.message ?? 'ไม่สามารถสร้างงานได้'}`);
+      setSaving(false);
+      return;
+    }
 
     // Notify parents via LINE
     let studentsToNotify: Student[] = [];
