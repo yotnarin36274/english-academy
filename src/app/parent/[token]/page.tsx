@@ -133,17 +133,26 @@ export default function ParentPortalPage() {
         || (a.target_student_ids ?? []).includes(stu.id);
     });
 
-    const { data: subs } = await db()
+    const { data: subsData } = await db()
       .from('homework_submissions')
-      .select('*, feedback(*)')
+      .select('*')
       .eq('student_id', stu.id);
 
-    const subMap = new Map<string, HomeworkSubmission & { feedback: FeedbackRow[] }>();
-    (subs ?? []).forEach((s: HomeworkSubmission & { feedback: FeedbackRow[] }) => subMap.set(s.assignment_id, s));
+    const { data: fbData } = await db()
+      .from('feedback')
+      .select('*')
+      .eq('student_id', stu.id);
+
+    const subMap = new Map<string, HomeworkSubmission>();
+    (subsData ?? []).forEach((s: HomeworkSubmission) => subMap.set(s.assignment_id, s));
+
+    const fbBySubId = new Map<string, FeedbackRow>();
+    (fbData ?? []).forEach((f: FeedbackRow) => fbBySubId.set(f.submission_id, f));
 
     const merged: ProgressItem[] = filtered.map((a: Assignment) => {
       const sub = subMap.get(a.id) ?? null;
-      return { assignment: a, submission: sub, feedback: sub?.feedback?.[0] ?? null };
+      const fb = sub ? fbBySubId.get(sub.id) ?? null : null;
+      return { assignment: a, submission: sub, feedback: fb };
     });
     setItems(merged);
     setLastUpdated(new Date());
