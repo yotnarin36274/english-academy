@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
@@ -16,9 +16,13 @@ export default function StudentHomeworkPage() {
   const [student, setStudent] = useState<Student | null>(null);
   const [assignments, setAssignments] = useState<AssignmentWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     loadData();
+    return () => { channelRef.current?.unsubscribe(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studentCode]);
 
@@ -32,7 +36,22 @@ export default function StudentHomeworkPage() {
 
     if (!stu) { router.replace('/homework'); return; }
     setStudent(stu);
+    await fetchAssignments(stu);
+    setLoading(false);
 
+    // Subscribe realtime
+    if (!channelRef.current) {
+      channelRef.current = db()
+        .channel(`student-hw-${stu.id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback', filter: `student_id=eq.${stu.id}` },
+          () => fetchAssignments(stu))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions', filter: `student_id=eq.${stu.id}` },
+          () => fetchAssignments(stu))
+        .subscribe();
+    }
+  }
+
+  async function fetchAssignments(stu: Student) {
     const { data: asgList } = await db()
       .from('assignments')
       .select('*')
@@ -60,7 +79,7 @@ export default function StudentHomeworkPage() {
     });
 
     setAssignments(merged);
-    setLoading(false);
+    setRefreshing(false);
   }
 
   const pending = assignments.filter(a => !a.submission);
@@ -74,9 +93,19 @@ export default function StudentHomeworkPage() {
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-5">
         <div className="max-w-lg mx-auto">
-          <p className="text-blue-100 text-sm">ENG SPARK ⚡</p>
-          <h1 className="text-xl font-bold mt-0.5">สวัสดีน้อง{student?.nickname} 👋</h1>
-          <p className="text-blue-100 text-sm mt-0.5">{student?.grade} · รหัส {studentCode}</p>
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-blue-100 text-sm">ENG SPARK ⚡</p>
+              <h1 className="text-xl font-bold mt-0.5">สวัสดีน้อง{student?.nickname} 👋</h1>
+              <p className="text-blue-100 text-sm mt-0.5">{student?.grade} · รหัส {studentCode}</p>
+            </div>
+            <button
+              onClick={() => { setRefreshing(true); if (student) fetchAssignments(student); }}
+              disabled={refreshing}
+              className="mt-1 bg-white/20 hover:bg-white/30 text-white text-xs px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+              {refreshing ? '...' : '🔄 รีเฟรช'}
+            </button>
+          </div>
         </div>
       </div>
 

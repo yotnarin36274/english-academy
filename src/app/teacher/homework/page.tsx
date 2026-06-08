@@ -95,9 +95,11 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
   const [comment, setComment] = useState(existing?.comment ?? '');
   const [saving, setSaving] = useState(false);
   const [notifySent, setNotifySent] = useState(false);
+  const [saveError, setSaveError] = useState('');
 
   async function save() {
     setSaving(true);
+    setSaveError('');
     const scoreNum = score !== '' ? parseInt(score) : null;
     const fbData = {
       submission_id: sub.id,
@@ -110,9 +112,11 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
     };
 
     if (existing) {
-      await db().from('feedback').update(fbData).eq('id', existing.id);
+      const { error } = await db().from('feedback').update(fbData).eq('id', existing.id);
+      if (error) { setSaveError(`บันทึกไม่สำเร็จ: ${error.message}`); setSaving(false); return; }
     } else {
-      await db().from('feedback').insert(fbData);
+      const { error: fbErr } = await db().from('feedback').insert(fbData);
+      if (fbErr) { setSaveError(`บันทึกไม่สำเร็จ: ${fbErr.message}`); setSaving(false); return; }
       await db().from('homework_submissions').update({ status: 'reviewed' }).eq('id', sub.id);
     }
 
@@ -151,6 +155,7 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
           placeholder="พิมพ์ feedback ให้นักเรียน..."
           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-blue-400" />
       </div>
+      {saveError && <p className="text-xs text-red-500 font-medium">❌ {saveError}</p>}
       {notifySent && (
         <p className="text-xs text-green-600 font-medium">✅ ส่ง LINE แจ้งผู้ปกครองแล้ว</p>
       )}
