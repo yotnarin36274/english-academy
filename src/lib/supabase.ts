@@ -1,12 +1,13 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from './database.types';
 
-type SupabaseClient = ReturnType<typeof createClient>;
+type TypedClient = SupabaseClient<Database>;
 
-let _instance: SupabaseClient | null = null;
+let _instance: TypedClient | null = null;
 
-function getInstance(): SupabaseClient {
+function getInstance(): TypedClient {
   if (!_instance) {
-    _instance = createClient(
+    _instance = createClient<Database>(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
@@ -14,12 +15,16 @@ function getInstance(): SupabaseClient {
   return _instance;
 }
 
-// Lazy proxy — createClient is only called when first accessed at runtime
-export const supabase = new Proxy({} as SupabaseClient, {
+export const supabase: TypedClient = new Proxy({} as TypedClient, {
   get(_target, prop, receiver) {
     return Reflect.get(getInstance(), prop, receiver);
   },
-});
+}) as TypedClient;
+
+/** Use this in new code — returns the actual typed client (no Proxy) */
+export function db(): TypedClient {
+  return getInstance();
+}
 
 export interface Submission {
   id: string;
