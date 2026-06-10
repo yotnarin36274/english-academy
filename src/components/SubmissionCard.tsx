@@ -5,6 +5,7 @@ import type { Submission } from '@/lib/supabase';
 import type { GroupData } from '@/lib/testData';
 import { getLevelBadgeStyle } from '@/lib/testData';
 import { computeSkillResults, generateLineReport } from '@/lib/reportGenerator';
+import { EXPLANATIONS } from '@/lib/explanationsData';
 import AnswerGrid from './AnswerGrid';
 import SkillBar from './SkillBar';
 
@@ -135,6 +136,7 @@ export default function SubmissionCard({
               totalQuestions={submission.total}
               questions={groupData.questions}
               skills={groupData.skills}
+              explanations={EXPLANATIONS[groupData.key]}
             />
           </div>
 

@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { supabase, Submission } from '@/lib/supabase';
 import { GROUPS, GroupKey, getLevelBadgeStyle } from '@/lib/testData';
 import { computeSkillResults } from '@/lib/reportGenerator';
+import { EXPLANATIONS } from '@/lib/explanationsData';
 import AnswerGrid from '@/components/AnswerGrid';
 import SkillBar from '@/components/SkillBar';
 
@@ -117,6 +118,7 @@ export default function ResultPage() {
             totalQuestions={submission.total}
             questions={groupData.questions}
             skills={groupData.skills}
+            explanations={EXPLANATIONS[submission.group_key]}
           />
         </div>
 

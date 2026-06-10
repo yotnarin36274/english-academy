@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { Question, Skill } from '@/lib/testData';
+import type { ExplanationSet } from '@/lib/explanationsData';
 
 interface AnswerGridProps {
   answers: Record<string, string>;
@@ -9,9 +10,10 @@ interface AnswerGridProps {
   totalQuestions: number;
   questions: Question[];
   skills: Skill[];
+  explanations?: Record<number, ExplanationSet>;
 }
 
-export default function AnswerGrid({ answers, answerKey, totalQuestions, questions, skills }: AnswerGridProps) {
+export default function AnswerGrid({ answers, answerKey, totalQuestions, questions, skills, explanations }: AnswerGridProps) {
   const [activeQuestion, setActiveQuestion] = useState<number | null>(null);
 
   const questionMap = new Map(questions.map((q) => [q.number, q]));
@@ -29,6 +31,7 @@ export default function AnswerGrid({ answers, answerKey, totalQuestions, questio
   const correctAnswer = activeQuestion !== null ? answerKey[activeQuestion] : '';
   const isActiveCorrect = studentAnswer === correctAnswer;
   const activeSkill = activeQuestion !== null ? skillForQ(activeQuestion) : undefined;
+  const activeExplanations = activeQuestion !== null ? explanations?.[activeQuestion] : undefined;
 
   return (
     <div className="space-y-3">
@@ -89,19 +92,26 @@ export default function AnswerGrid({ answers, answerKey, totalQuestions, questio
               return (
                 <div
                   key={letter}
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg border"
+                  className="px-3 py-2 rounded-lg border"
                   style={{ borderColor, backgroundColor: bgColor, color }}
                 >
-                  <span className="font-bold flex-shrink-0 w-4">{letter}.</span>
-                  <span className="flex-1">{optionText}</span>
-                  {isStudentChoice && !isActiveCorrect && (
-                    <span className="text-xs font-semibold flex-shrink-0 ml-auto">คำตอบของน้อง</span>
-                  )}
-                  {!isActiveCorrect && isCorrectAnswer && (
-                    <span className="text-xs font-semibold flex-shrink-0 ml-auto" style={{ color: '#1D9E75' }}>✓ เฉลย</span>
-                  )}
-                  {isStudentChoice && isActiveCorrect && (
-                    <span className="text-xs font-semibold flex-shrink-0 ml-auto" style={{ color: '#1D9E75' }}>✓ ถูก</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold flex-shrink-0 w-4">{letter}.</span>
+                    <span className="flex-1">{optionText}</span>
+                    {isStudentChoice && !isActiveCorrect && (
+                      <span className="text-xs font-semibold flex-shrink-0">คำตอบของน้อง</span>
+                    )}
+                    {!isActiveCorrect && isCorrectAnswer && (
+                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#1D9E75' }}>✓ เฉลย</span>
+                    )}
+                    {isStudentChoice && isActiveCorrect && (
+                      <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#1D9E75' }}>✓ ถูก</span>
+                    )}
+                  </div>
+                  {activeExplanations && (
+                    <p className="text-xs text-gray-500 mt-1 ml-5 leading-snug">
+                      {activeExplanations[letter]}
+                    </p>
                   )}
                 </div>
               );
