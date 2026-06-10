@@ -44,6 +44,7 @@ export default function SubmissionCard({
   onDelete,
 }: SubmissionCardProps) {
   const [lineCopyState, setLineCopyState] = useState<CopyState>('idle');
+  const [linkCopyState, setLinkCopyState] = useState<CopyState>('idle');
   const [deleteState, setDeleteState] = useState<'idle' | 'confirm' | 'deleting'>('idle');
 
   const skillResults = computeSkillResults(submission, groupData);
@@ -208,6 +209,22 @@ export default function SubmissionCard({
               </div>
 
             </div>
+          </div>
+
+          {/* Share result link */}
+          <div className="pt-1">
+            <button
+              onClick={() => copyText(`${window.location.origin}/results/${submission.id}`, setLinkCopyState)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200"
+              style={
+                linkCopyState === 'copied'
+                  ? { backgroundColor: '#E1F5EE', borderColor: '#1D9E75', color: '#085041' }
+                  : { backgroundColor: 'white', borderColor: '#1D9E75', color: '#1D9E75' }
+              }
+            >
+              <span>{linkCopyState === 'copied' ? '✓' : '🔗'}</span>
+              <span>{linkCopyState === 'copied' ? 'คัดลอกลิงก์แล้ว!' : 'คัดลอกลิงก์ผลสอบ (ส่งให้นักเรียน)'}</span>
+            </button>
           </div>
 
           {/* LINE report copy button */}
