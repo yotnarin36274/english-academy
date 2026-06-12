@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💣 Time Bomb Defusal — Grammar Edition</title>
+<style>
+  :root {
+    --dark: #0D0B1E; --card: #1A1535; --border: #2D2757;
+    --gold: #FFD700; --green: #39FF14; --red: #FF2442; --blue: #00D4FF; --purple: #7C3AED;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--dark); color: #fff; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 24px 16px; transition: background-color .3s;
+  }
+  body.alarm { animation: bgAlarm .8s ease-in-out infinite; }
+  @keyframes bgAlarm { 0%,100% { background-color:#1c0707; } 50% { background-color:#450a0a; } }
+
+  .screen { width: 100%; max-width: 640px; text-align: center; animation: slideUp .4s ease-out; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  @keyframes reveal { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  @keyframes shake {
+    0%,100% { transform: translate(0,0) rotate(0); } 20% { transform: translate(-6px,3px) rotate(-2deg); }
+    40% { transform: translate(6px,-3px) rotate(2deg); } 60% { transform: translate(-5px,-2px) rotate(-1.5deg); }
+    80% { transform: translate(5px,2px) rotate(1.5deg); }
+  }
+  @keyframes ledFlash { 0%,100% { color: var(--red); } 50% { color: #fff; } }
+  .hidden { display: none !important; }
+
+  h1.title { font-family: Impact, 'Arial Black', sans-serif; letter-spacing: 1px; font-size: clamp(28px, 7vw, 48px);
+    color: var(--red); text-shadow: 0 0 25px rgba(255,36,66,.6); }
+  .subtitle { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px; color: #a78bfa; margin-top: 8px; }
+
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px; margin-top: 22px; }
+  .card.rules { text-align: left; line-height: 2; color: #cbd5e1; }
+  .card.green { border: 3px solid var(--green); box-shadow: 0 0 45px rgba(57,255,20,.3); animation: reveal .5s ease-out; }
+  .card.red   { border: 3px solid var(--red);   box-shadow: 0 0 45px rgba(255,36,66,.35); animation: reveal .5s ease-out; }
+
+  .btn { border: 0; cursor: pointer; border-radius: 14px; font-weight: 900; font-size: 20px;
+    padding: 14px 36px; margin-top: 24px; transition: transform .1s; }
+  .btn:active { transform: scale(.95); }
+  .btn:disabled { opacity: .35; cursor: default; }
+  .btn.gold { background: var(--gold); color: #000; box-shadow: 0 0 20px rgba(255,215,0,.4); }
+  .btn.purple { background: var(--purple); color: #fff; }
+
+  .hud { display: flex; justify-content: space-between; align-items: center; font-size: 14px; font-weight: 800; margin-bottom: 18px; }
+  .hud .lvl { color: #a78bfa; text-transform: uppercase; letter-spacing: 2px; font-size: 11px; }
+  .hud .score { color: var(--gold); font-family: Impact, sans-serif; font-size: 20px; letter-spacing: 1px; }
+  .hud .ok { color: var(--green); }
+
+  .bomb { width: 200px; height: 200px; border-radius: 50%; margin: 0 auto 22px;
+    background: radial-gradient(circle at 30% 25%, #52525b, #18181b 60%, #000);
+    border: 4px solid #52525b; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    box-shadow: 0 18px 45px rgba(0,0,0,.6); position: relative; }
+  .bomb::before { content: '🧨'; position: absolute; top: -30px; font-size: 34px; }
+  .bomb.low { border-color: var(--red); }
+  .bomb.boom { border-color: var(--red); animation: shake .45s ease-in-out infinite; }
+  .led { font-family: 'Consolas', monospace; font-size: 46px; font-weight: 900; letter-spacing: 6px;
+    color: #f87171; text-shadow: 0 0 12px rgba(255,36,66,.8); }
+  .led.low { animation: ledFlash .5s ease-in-out infinite; }
+  .bomb small { font-size: 9px; letter-spacing: 5px; color: #71717a; margin-top: 4px; }
+
+  .sentence { background: var(--card); border: 2px solid var(--red); border-radius: 18px; padding: 22px;
+    font-size: clamp(18px, 4.5vw, 26px); font-weight: 600; line-height: 1.5;
+    box-shadow: 0 0 30px rgba(255,36,66,.15); margin-bottom: 18px; }
+
+  form { display: flex; gap: 8px; }
+  input[type=text] { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    color: #fff; font-size: 18px; padding: 14px 16px; outline: none; min-width: 0; }
+  input[type=text]:focus { border-color: var(--red); }
+  input::placeholder { color: #6b7280; }
+  form .btn { margin-top: 0; padding: 14px 22px; font-size: 17px; white-space: nowrap; }
+
+  .big-emoji { font-size: 64px; margin-bottom: 6px; }
+  .result-title { font-family: Impact, 'Arial Black', sans-serif; font-size: 44px; letter-spacing: 2px; }
+  .result-title.green { color: var(--green); }
+  .result-title.red { color: var(--red); }
+  .gain { color: var(--gold); font-family: Impact, sans-serif; font-size: 24px; margin-top: 6px; }
+  .explain { border-top: 1px solid var(--border); margin-top: 18px; padding-top: 16px; text-align: left; }
+  .explain .label { color: #9ca3af; font-size: 13px; }
+  .explain .fix { color: var(--green); font-weight: 900; font-size: 22px; margin: 4px 0 10px; }
+  .explain .why { color: #cbd5e1; line-height: 1.6; }
+  .typed { color: #9ca3af; margin-top: 8px; }
+  .typed b { color: var(--red); }
+
+  .final-num { font-family: Impact, sans-serif; font-size: 52px; margin-top: 4px; }
+  .final-label { color: #cbd5e1; font-size: 17px; margin-top: 18px; }
+  .verdict { color: #9ca3af; margin-top: 22px; line-height: 1.6; }
+
+  /* ── Answer review (after the game) ── */
+  .review-head { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 3px;
+    color: #a78bfa; margin: 28px 0 10px; text-align: left; }
+  details.review-item { background: var(--card); border: 1px solid var(--border); border-left: 5px solid var(--border);
+    border-radius: 14px; margin-bottom: 8px; text-align: left; overflow: hidden; }
+  details.review-item.ok  { border-left-color: var(--green); }
+  details.review-item.bad { border-left-color: var(--red); }
+  details.review-item summary { cursor: pointer; padding: 13px 16px; font-weight: 700; font-size: 15px;
+    list-style: none; display: flex; align-items: center; gap: 10px; user-select: none; }
+  details.review-item summary::-webkit-details-marker { display: none; }
+  details.review-item summary .num { color: #71717a; font-family: Impact, sans-serif; min-width: 26px; }
+  details.review-item summary .snip { flex: 1; color: #cbd5e1; font-weight: 600; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  details.review-item summary .chev { color: #71717a; transition: transform .2s; }
+  details.review-item[open] summary .chev { transform: rotate(90deg); }
+  .review-body { padding: 4px 16px 16px; border-top: 1px solid var(--border); }
+  .review-body .q { font-size: 17px; font-weight: 600; line-height: 1.5; margin: 10px 0; }
+  .review-row { font-size: 15px; margin-top: 8px; color: #cbd5e1; }
+  .review-row .lab { color: #9ca3af; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+  .review-row .you-ok  { color: var(--green); font-weight: 900; font-size: 17px; }
+  .review-row .you-bad { color: var(--red); font-weight: 900; font-size: 17px; }
+  .review-row .fix     { color: var(--green); font-weight: 900; font-size: 17px; }
+  .review-row.why { line-height: 1.6; margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<!-- START -->
+<div id="screen-start" class="screen">
+  <div class="big-emoji" style="font-size:84px">💣</div>
+  <h1 class="title">TIME BOMB DEFUSAL</h1>
+  <div class="subtitle">Grammar Edition · 12 Levels</div>
+  <div class="card rules">
+    🔍 Each bomb shows a sentence with <b style="color:#fff">one grammar error</b>.<br>
+    ⌨️ Type <b style="color:var(--gold)">ONLY the corrected word(s)</b> — not the whole sentence.<br>
+    ⏱ You have <b style="color:var(--red)">45 seconds</b> per bomb. Wrong answer = instant 💥<br>
+    💰 Faster defusal = more points!
+  </div>
+  <button class="btn gold" onclick="startGame()">START MISSION 🕶️</button>
+</div>
+
+<!-- GAME -->
+<div id="screen-game" class="screen hidden">
+  <div class="hud">
+    <span class="lvl">BOMB <span id="hud-level">1</span> / 12</span>
+    <span class="score">SCORE: <span id="hud-score">0</span></span>
+    <span class="ok">✓ <span id="hud-defused">0</span> defused</span>
+  </div>
+
+  <div class="bomb" id="bomb">
+    <div class="led" id="led">00:45</div>
+    <small>DETONATOR</small>
+  </div>
+
+  <div id="play-area">
+    <div class="sentence" id="sentence"></div>
+    <form id="form" autocomplete="off">
+      <input type="text" id="answer" maxlength="40" autocapitalize="off"
+             placeholder="Type ONLY the corrected word(s)…">
+      <button type="submit" class="btn gold" id="defuse-btn">✂️ DEFUSE</button>
+    </form>
+  </div>
+
+  <div id="result-area" class="hidden">
+    <div class="card" id="result-card">
+      <div class="big-emoji" id="result-emoji"></div>
+      <div class="result-title" id="result-title"></div>
+      <div class="gain" id="result-gain"></div>
+      <div class="typed" id="result-typed"></div>
+      <div class="explain">
+        <div class="label" id="explain-label">The fix:</div>
+        <div class="fix" id="explain-fix"></div>
+        <div class="why" id="explain-why"></div>
+      </div>
+    </div>
+    <button class="btn purple" id="next-btn" onclick="next()">NEXT BOMB ▶</button>
+  </div>
+</div>
+
+<!-- FINISH -->
+<div id="screen-finish" class="screen hidden">
+  <div class="big-emoji" style="font-size:84px" id="final-medal">🏆</div>
+  <h1 class="title" style="color:var(--gold);text-shadow:0 0 25px rgba(255,215,0,.5)">MISSION COMPLETE</h1>
+  <div class="card">
+    <div class="final-label">Bombs defused</div>
+    <div class="final-num" style="color:var(--green)"><span id="final-defused"></span> / 12</div>
+    <div class="final-label">Final score</div>
+    <div class="final-num" style="color:var(--gold)" id="final-score"></div>
+    <div class="verdict" id="final-verdict"></div>
+  </div>
+
+  <div class="review-head">📋 Answer Review — tap a question to see details</div>
+  <div id="review"></div>
+
+  <button class="btn gold" onclick="startGame()">🔁 PLAY AGAIN</button>
+</div>
+
+<script>
+const LEVEL_SECONDS = 45, LOW_TIME = 10;
+
+const LEVELS = [
+  { id: 1, sentence: "Electric cars will replaced petrol cars.", answer: "replace", explanation: "After 'will', the verb must be in its base form (infinitive) without -ed." },
+  { id: 2, sentence: "Do your school look like most other schools?", answer: "Does", explanation: "'your school' is singular, so the helping verb must be 'Does'." },
+  { id: 3, sentence: "Charging the battery are a problem.", answer: "is", explanation: "A gerund subject ('Charging') is always singular, so use 'is'." },
+  { id: 4, sentence: "You can follows this simple course at home.", answer: "follow", explanation: "After 'can', the verb must be in its base form without -s." },
+  { id: 5, sentence: "These is a picture of the Leaning Tower of Pisa.", answer: "This", explanation: "Because the verb is 'is' (singular), the demonstrative pronoun must be 'This', not 'These'." },
+  { id: 6, sentence: "They lived in Thailand for over ten years, since I was not born.", answer: "have lived", explanation: "The presence of 'since' indicates Present Perfect tense (have/has + V.3)." },
+  { id: 7, sentence: "He wasn't able to finished it until this June.", answer: "finish", explanation: "After 'to' (infinitive), the verb must be in its base form." },
+  { id: 8, sentence: "A large group of people are waiting outside.", answer: "is", explanation: "The core subject is 'group' (singular). 'of people' is just a prepositional phrase." },
+  { id: 9, sentence: "Everyone in my class want to go to Japan.", answer: "wants", explanation: "'Everyone' is an indefinite pronoun, which is always singular. The verb needs an 's'." },
+  { id: 10, sentence: "The sun is rising in the East every day.", answer: "rises", explanation: "Facts and general truths must use Present Simple, not Present Continuous." },
+  { id: 11, sentence: "Two men was walking in the park yesterday.", answer: "were", explanation: "'men' is the plural form of 'man', so the past tense 'to be' is 'were'." },
+  { id: 12, sentence: "I didn't went to school yesterday.", answer: "go", explanation: "When 'didn't' is used in Past Simple, the main verb reverts to its base form (V.1)." },
+];
+
+let level = 0, timeLeft = LEVEL_SECONDS, score = 0, defusedCount = 0, playing = false, timerId = null;
+let history = []; // per-level record for the post-game answer review
+let audioCtx = null;
+
+const $ = (id) => document.getElementById(id);
+const normalize = (s) => String(s || '').toLowerCase().replace(/[.!?]+$/, '').replace(/\s+/g, ' ').trim();
+
+// ── Sounds: synthesized with the Web Audio API (no files needed) ──
+function audio() {
+  if (!audioCtx) {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (AC) audioCtx = new AC();
+  }
+  return audioCtx;
+}
+function beep(freq, dur, opts) {
+  const o = opts || {}, ctx = audio();
+  if (!ctx) return;
+  const t = ctx.currentTime + (o.delay || 0);
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.type = o.type || 'square';
+  osc.frequency.value = freq;
+  g.gain.setValueAtTime(o.vol || 0.06, t);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(g); g.connect(ctx.destination);
+  osc.start(t); osc.stop(t + dur + 0.02);
+}
+function playTick(s) {
+  if (s <= LOW_TIME) { beep(1500, .05, { vol: .09 }); beep(1500, .05, { vol: .09, delay: .15 }); }
+  else beep(900, .04);
+}
+function playDefuse() {
+  [523, 659, 784, 1047].forEach((f, i) => beep(f, .18, { type: 'triangle', vol: .12, delay: i * .12 }));
+}
+function playBoom() {
+  const ctx = audio();
+  if (!ctx) return;
+  const t = ctx.currentTime, len = ctx.sampleRate * .9;
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(2500, t); f.frequency.exponentialRampToValueAtTime(80, t + .8);
+  const g = ctx.createGain();
+  g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .9);
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
+  beep(60, .6, { type: 'sine', vol: .4 });
+}
+
+// ── Game flow ──
+function show(id) {
+  ['screen-start', 'screen-game', 'screen-finish'].forEach(s => $(s).classList.add('hidden'));
+  $(id).classList.remove('hidden');
+}
+
+function startGame() {
+  const ctx = audio();
+  if (ctx && ctx.resume) ctx.resume(); // unlock audio on first tap (mobile)
+  score = 0; defusedCount = 0; history = [];
+  startLevel(0);
+}
+
+function startLevel(idx) {
+  level = idx; timeLeft = LEVEL_SECONDS; playing = true;
+  clearTimeout(timerId);
+  show('screen-game');
+  $('play-area').classList.remove('hidden');
+  $('result-area').classList.add('hidden');
+  $('sentence').textContent = '“' + LEVELS[level].sentence + '”';
+  $('answer').value = '';
+  $('answer').disabled = false;
+  $('answer').focus();
+  document.body.classList.remove('alarm');
+  $('bomb').className = 'bomb';
+  updateHud(); renderClock();
+  tickLoop();
+}
+
+function tickLoop() {
+  timerId = setTimeout(() => {
+    if (!playing) return;
+    timeLeft--;
+    renderClock();
+    if (timeLeft <= 0) { boom(null); return; }
+    playTick(timeLeft);
+    if (timeLeft <= LOW_TIME) { document.body.classList.add('alarm'); $('bomb').className = 'bomb low'; $('led').classList.add('low'); }
+    tickLoop();
+  }, 1000);
+}
+
+function renderClock() {
+  const mm = String(Math.floor(Math.max(timeLeft, 0) / 60)).padStart(2, '0');
+  const ss = String(Math.max(timeLeft, 0) % 60).padStart(2, '0');
+  $('led').textContent = mm + ':' + ss;
+}
+
+function updateHud() {
+  $('hud-level').textContent = level + 1;
+  $('hud-score').textContent = score.toLocaleString();
+  $('hud-defused').textContent = defusedCount;
+}
+
+$('form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!playing) return;
+  const typed = $('answer').value;
+  if (!typed.trim()) return;
+  if (normalize(typed) === normalize(LEVELS[level].answer)) defused(typed.trim());
+  else boom(typed.trim());
+});
+
+function endRound() {
+  playing = false;
+  clearTimeout(timerId);
+  document.body.classList.remove('alarm');
+  $('answer').disabled = true;
+  $('play-area').classList.add('hidden');
+  $('result-area').classList.remove('hidden');
+  $('explain-fix').textContent = '“' + LEVELS[level].answer + '”';
+  $('explain-why').textContent = '💡 ' + LEVELS[level].explanation;
+  $('next-btn').textContent = level >= LEVELS.length - 1 ? 'SEE RESULTS 🏆' : 'NEXT BOMB ▶';
+}
+
+function defused(typed) {
+  const gain = 100 + timeLeft * 10;
+  score += gain; defusedCount++;
+  history.push({ q: LEVELS[level], typed: typed, ok: true, gain: gain });
+  playDefuse();
+  endRound();
+  updateHud();
+  $('bomb').className = 'bomb';
+  $('result-card').className = 'card green';
+  $('result-emoji').textContent = '✅';
+  $('result-title').textContent = 'DEFUSED!';
+  $('result-title').className = 'result-title green';
+  $('result-gain').textContent = '+' + gain.toLocaleString() + ' points';
+  $('result-typed').textContent = '';
+  $('explain-label').textContent = 'The fix:';
+}
+
+function boom(typed) {
+  history.push({ q: LEVELS[level], typed: typed, ok: false, gain: 0 });
+  playBoom();
+  endRound();
+  renderClock();
+  $('bomb').className = 'bomb boom';
+  $('result-card').className = 'card red';
+  $('result-emoji').textContent = '💥';
+  $('result-title').textContent = 'BOOM!';
+  $('result-title').className = 'result-title red';
+  $('result-gain').textContent = '';
+  $('result-typed').innerHTML = typed == null
+    ? 'Time ran out!'
+    : 'You typed <b>“' + typed.replace(/</g, '&lt;') + '”</b>';
+  $('explain-label').textContent = 'The correct fix was:';
+}
+
+function next() {
+  if (level >= LEVELS.length - 1) finish();
+  else startLevel(level + 1);
+}
+
+function finish() {
+  show('screen-finish');
+  $('bomb').className = 'bomb';
+  $('final-defused').textContent = defusedCount;
+  $('final-score').textContent = score.toLocaleString();
+  $('final-medal').textContent =
+    defusedCount === 12 ? '🏆' : defusedCount >= 9 ? '🥇' : defusedCount >= 6 ? '🥈' : defusedCount >= 3 ? '🥉' : '💀';
+  $('final-verdict').textContent =
+    defusedCount === 12 ? 'PERFECT! You are a certified Grammar Bomb Squad agent! 🕶️'
+    : defusedCount >= 9 ? 'Excellent work, agent. Almost flawless!'
+    : defusedCount >= 6 ? 'Good job — review the explanations and try again!'
+    : 'The city needs you to train harder. Review and retry!';
+  renderReview();
+}
+
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function renderReview() {
+  const box = $('review');
+  box.innerHTML = '';
+  history.forEach((h, i) => {
+    const d = document.createElement('details');
+    d.className = 'review-item ' + (h.ok ? 'ok' : 'bad');
+    const youLine = h.typed == null
+      ? '<span class="you-bad">⏰ Time ran out — no answer</span>'
+      : '<span class="' + (h.ok ? 'you-ok' : 'you-bad') + '">“' + esc(h.typed) + '”</span>';
+    d.innerHTML =
+      '<summary>' +
+        '<span class="num">' + (i + 1) + '</span>' +
+        '<span>' + (h.ok ? '✅' : '💥') + '</span>' +
+        '<span class="snip">' + esc(h.q.sentence) + '</span>' +
+        '<span class="chev">▶</span>' +
+      '</summary>' +
+      '<div class="review-body">' +
+        '<div class="q">“' + esc(h.q.sentence) + '”</div>' +
+        '<div class="review-row"><div class="lab">Your answer</div>' + youLine +
+          (h.ok ? ' <span style="color:var(--gold);font-weight:700">+' + h.gain.toLocaleString() + ' pts</span>' : '') +
+        '</div>' +
+        '<div class="review-row"><div class="lab">Correct answer</div><span class="fix">“' + esc(h.q.answer) + '”</span></div>' +
+        '<div class="review-row why">💡 ' + esc(h.q.explanation) + '</div>' +
+      '</div>';
+    box.appendChild(d);
+  });
+}
+</script>
+</body>
+</html>
