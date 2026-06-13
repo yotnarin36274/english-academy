@@ -126,7 +126,7 @@ export default function HubPage() {
               disabled={!studentCode.trim()}
               className="px-4 py-2.5 bg-green-600 disabled:opacity-40 text-white text-sm font-semibold rounded-xl hover:bg-green-700 transition-colors"
             >
-              ดูการบ้าน
+              เข้าสู่ระบบ
             </button>
           </div>
         </div>
