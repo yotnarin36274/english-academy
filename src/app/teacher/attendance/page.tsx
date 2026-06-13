@@ -26,6 +26,12 @@ export default function AttendancePage() {
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [notified, setNotified] = useState<Record<string, boolean>>({});
 
+  // Edit / delete session
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editSessionForm, setEditSessionForm] = useState({ date: '', topic: '', hours: '', week: '' });
+  const [editSessionSaving, setEditSessionSaving] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+
   // Create session form
   const [showForm, setShowForm] = useState(false);
   const [formDate, setFormDate] = useState(new Date().toISOString().split('T')[0]);
@@ -148,6 +154,44 @@ export default function AttendancePage() {
     }
 
     setSaving(p => ({ ...p, [stu.id]: false }));
+  }
+
+  function startEditSession(s: ClassSession) {
+    setEditSessionForm({
+      date: s.session_date,
+      topic: s.topic,
+      hours: s.duration_hours.toString(),
+      week: s.week_number?.toString() ?? '',
+    });
+    setEditingSessionId(s.id);
+  }
+
+  async function saveEditSession() {
+    if (!editingSessionId || !editSessionForm.topic.trim()) return;
+    setEditSessionSaving(true);
+    await db().from('class_sessions').update({
+      session_date: editSessionForm.date,
+      topic: editSessionForm.topic.trim(),
+      duration_hours: parseFloat(editSessionForm.hours) || 1.5,
+      week_number: editSessionForm.week ? parseInt(editSessionForm.week) : null,
+    }).eq('id', editingSessionId);
+    setEditSessionSaving(false);
+    setEditingSessionId(null);
+    loadSessions();
+  }
+
+  async function deleteSession(id: string) {
+    if (!window.confirm('ลบ Session นี้?\n(ข้อมูลเช็คชื่อและ Make-up ใน Session จะถูกลบด้วย)')) return;
+    setDeletingSessionId(id);
+    const { data: attRows } = await db().from('attendance').select('id').eq('session_id', id);
+    if (attRows?.length) {
+      await db().from('makeup_classes').delete().in('attendance_id', (attRows as {id: string}[]).map(a => a.id));
+    }
+    await db().from('makeup_classes').delete().eq('session_id', id);
+    await db().from('attendance').delete().eq('session_id', id);
+    await db().from('class_sessions').delete().eq('id', id);
+    setDeletingSessionId(null);
+    setSessions(prev => prev.filter(s => s.id !== id));
   }
 
   async function createSession() {
@@ -375,22 +419,74 @@ export default function AttendancePage() {
           <div>
             <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">เลือก Session ที่จะเช็คชื่อ</h2>
             <div className="space-y-2">
-              {sessions.map(s => (
-                <button key={s.id} onClick={() => selectSession(s)}
-                  className="w-full bg-white rounded-xl shadow-sm border border-gray-100 p-4 text-left hover:border-blue-300 hover:bg-blue-50 transition-colors">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="font-semibold text-gray-800">{s.topic}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
-                        {s.week_number && ` · สัปดาห์ ${s.week_number}`}
-                        {' · '}{s.duration_hours} ชม.
-                      </p>
+              {sessions.map(s => {
+                if (editingSessionId === s.id) {
+                  return (
+                    <div key={s.id} className="bg-white rounded-xl shadow-sm border-2 border-blue-200 p-4 space-y-3">
+                      <p className="text-sm font-semibold text-gray-700">✏️ แก้ไข Session</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="text-xs font-medium text-gray-600">วันที่</label>
+                          <input type="date" value={editSessionForm.date}
+                            onChange={e => setEditSessionForm(f => ({ ...f, date: e.target.value }))}
+                            className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium text-gray-600">สัปดาห์ที่</label>
+                          <input type="number" min="1" value={editSessionForm.week} placeholder="เช่น 3"
+                            onChange={e => setEditSessionForm(f => ({ ...f, week: e.target.value }))}
+                            className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-medium text-gray-600">หัวข้อ *</label>
+                        <input value={editSessionForm.topic}
+                          onChange={e => setEditSessionForm(f => ({ ...f, topic: e.target.value }))}
+                          className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                      <div className="w-36">
+                        <label className="text-xs font-medium text-gray-600">ระยะเวลา (ชม.)</label>
+                        <input type="number" step="0.5" min="0.5" value={editSessionForm.hours}
+                          onChange={e => setEditSessionForm(f => ({ ...f, hours: e.target.value }))}
+                          className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditingSessionId(null)}
+                          className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">
+                          ยกเลิก
+                        </button>
+                        <button onClick={saveEditSession} disabled={editSessionSaving || !editSessionForm.topic.trim()}
+                          className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">
+                          {editSessionSaving ? 'กำลังบันทึก...' : '💾 บันทึก'}
+                        </button>
+                      </div>
                     </div>
-                    <span className="text-blue-400 text-lg">→</span>
+                  );
+                }
+                return (
+                  <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => selectSession(s)} className="flex-1 text-left">
+                        <p className="font-semibold text-gray-800">{s.topic}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
+                          {s.week_number && ` · สัปดาห์ ${s.week_number}`}
+                          {' · '}{s.duration_hours} ชม.
+                        </p>
+                      </button>
+                      <button onClick={() => startEditSession(s)}
+                        className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium transition-colors">
+                        ✏️
+                      </button>
+                      <button onClick={() => deleteSession(s.id)} disabled={deletingSessionId === s.id}
+                        className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 font-medium transition-colors disabled:opacity-50">
+                        {deletingSessionId === s.id ? '...' : '🗑️'}
+                      </button>
+                      <span className="text-blue-300 shrink-0">→</span>
+                    </div>
                   </div>
-                </button>
-              ))}
+                );
+              })}
               {sessions.length === 0 && (
                 <div className="text-center py-12 text-gray-400">
                   <div className="text-4xl mb-2">📋</div>
