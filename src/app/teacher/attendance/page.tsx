@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/supabase';
-import { sendLineNotify, buildAbsentMessage, buildLeaveMessage } from '@/lib/notifications';
 import type { Student, ClassSession, Attendance } from '@/lib/db';
 
 const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
@@ -24,7 +23,6 @@ export default function AttendancePage() {
   const [selectedSession, setSelectedSession] = useState<ClassSession | null>(null);
   const [sessionStudents, setSessionStudents] = useState<StudentWithAttendance[]>([]);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
-  const [notified, setNotified] = useState<Record<string, boolean>>({});
 
   // Edit / delete session
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -99,7 +97,7 @@ export default function AttendancePage() {
       status: attMap.get(s.id)?.status,
       attendedHours: attendedMap.get(s.id) ?? 0,
     })));
-    setNotified({});
+
   }
 
   async function markAttendance(stu: StudentWithAttendance, status: 'present' | 'absent' | 'leave') {
@@ -136,15 +134,6 @@ export default function AttendancePage() {
           duration_hours: selectedSession.duration_hours,
           completed: false,
         }, { onConflict: 'attendance_id' });
-      }
-      // LINE notify parent
-      if (stu.parent_line_notify_token) {
-        const baseUrl = window.location.origin;
-        const msg = status === 'absent'
-          ? buildAbsentMessage(stu, selectedSession, baseUrl)
-          : buildLeaveMessage(stu, selectedSession, baseUrl);
-        const ok = await sendLineNotify(stu.parent_line_notify_token, msg);
-        if (ok) setNotified(p => ({ ...p, [stu.id]: true }));
       }
     } else if (status === 'present' && (prevStatus === 'absent' || prevStatus === 'leave')) {
       // Delete makeup record if existed
@@ -382,7 +371,7 @@ export default function AttendancePage() {
                         ) : null}
                       </p>
                     </div>
-                    {notified[stu.id] && <span className="text-xs text-green-500">LINE ✓</span>}
+
                     {saving[stu.id] && <span className="text-xs text-gray-400">กำลังบันทึก...</span>}
                   </div>
                   <div className="flex gap-2">

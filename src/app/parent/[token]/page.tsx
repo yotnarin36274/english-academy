@@ -69,26 +69,6 @@ function ScoreBar({ score, max }: { score: number; max: number }) {
   );
 }
 
-function MiniChart({ items }: { items: ProgressItem[] }) {
-  const reviewed = items.filter(i => i.feedback?.score != null).slice(-8);
-  if (reviewed.length < 2) return null;
-  const maxScore = Math.max(...reviewed.map(i => i.feedback!.max_score));
-  const W = 280, H = 80, pad = 10;
-  const pts = reviewed.map((item, idx) => {
-    const x = pad + (idx / (reviewed.length - 1)) * (W - pad * 2);
-    const y = H - pad - ((item.feedback!.score! / item.feedback!.max_score) * (H - pad * 2));
-    return { x, y, item };
-  });
-  const polyline = pts.map(p => `${p.x},${p.y}`).join(' ');
-  return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 80 }}>
-      <polyline points={polyline} fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinejoin="round" />
-      {pts.map((p, i) => (
-        <circle key={i} cx={p.x} cy={p.y} r="4" fill="#1D9E75" />
-      ))}
-    </svg>
-  );
-}
 
 export default function ParentPortalPage() {
   const { token } = useParams<{ token: string }>();
@@ -96,6 +76,7 @@ export default function ParentPortalPage() {
   const [items, setItems] = useState<ProgressItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [copied, setCopied] = useState(false);
   const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; duration_hours: number; status: string}>>([]);
   const [makeups, setMakeups] = useState<Array<{id: string; topic: string; duration_hours: number}>>([]);
   const [attendedHours, setAttendedHours] = useState(0);
@@ -200,6 +181,53 @@ export default function ParentPortalPage() {
   }
 
   const reviewed = items.filter(i => i.feedback?.score != null);
+
+  function buildReportMessage() {
+    if (!student) return '';
+    const lines: string[] = [
+      `📊 รายงานความคืบหน้าการเรียน`,
+      `น้อง${student.nickname}${student.full_name ? ` (${student.full_name})` : ''} · ${student.grade}`,
+      `รหัส: ${student.student_code} | ENG SPARK Academy`,
+      '',
+    ];
+    if (student.session_type === 'fixed' && student.total_course_hours) {
+      const rem = Math.max(0, student.total_course_hours - attendedHours);
+      lines.push(`⏱ ชั่วโมงเรียน`);
+      lines.push(`เรียนแล้ว ${attendedHours} ชม. / ทั้งหมด ${student.total_course_hours} ชม.`);
+      lines.push(`คงเหลือ ${rem} ชม.`);
+      lines.push('');
+    } else if (attendedHours > 0) {
+      lines.push(`⏱ รวมเรียน ${attendedHours} ชม.`);
+      lines.push('');
+    }
+    lines.push(`📝 การบ้าน`);
+    lines.push(`ส่งแล้ว ${items.filter(i => i.submission).length}/${items.length} ชิ้นงาน`);
+    if (avgScore != null) lines.push(`คะแนนเฉลี่ย ${avgScore}%`);
+    if (makeups.length > 0) {
+      lines.push('');
+      lines.push(`🔁 Make-up คงค้าง ${makeups.length} รายการ`);
+      makeups.forEach(m => lines.push(`  • ${m.topic} (${m.duration_hours} ชม.)`));
+    }
+    if (sessions.length > 0) {
+      lines.push('');
+      lines.push(`📋 Session ล่าสุด`);
+      sessions.slice(0, 4).forEach(s => {
+        const icon = s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒';
+        const date = new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+        lines.push(`${icon} ${date} · ${s.topic} (${s.duration_hours} ชม.)`);
+      });
+    }
+    lines.push('');
+    lines.push(`อัปเดต: ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}`);
+    lines.push(`ENG SPARK Academy ⚡`);
+    return lines.join('\n');
+  }
+
+  async function copyReport() {
+    await navigator.clipboard.writeText(buildReportMessage());
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2500);
+  }
   const avgScore = reviewed.length
     ? Math.round(reviewed.reduce((s, i) => s + (i.feedback!.score! / i.feedback!.max_score) * 100, 0) / reviewed.length)
     : null;
@@ -314,17 +342,11 @@ export default function ParentPortalPage() {
           </div>
         )}
 
-        {/* Progress chart */}
-        {reviewed.length >= 2 && (
-          <div className="bg-white rounded-2xl shadow-sm p-4">
-            <h2 className="text-sm font-semibold text-gray-600 mb-3">📈 กราฟพัฒนาการ (8 ชิ้นงานล่าสุด)</h2>
-            <MiniChart items={items} />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>เก่าสุด</span>
-              <span>ล่าสุด</span>
-            </div>
-          </div>
-        )}
+        {/* Copy report button */}
+        <button onClick={copyReport}
+          className={`w-full py-3 rounded-2xl text-sm font-semibold transition-colors ${copied ? 'bg-green-500 text-white' : 'bg-white border-2 border-green-200 text-green-700 hover:bg-green-50'}`}>
+          {copied ? '✅ คัดลอกแล้ว!' : '📋 คัดลอกรายงานเพื่อส่ง LINE'}
+        </button>
 
         {/* Assignment list */}
         <div>

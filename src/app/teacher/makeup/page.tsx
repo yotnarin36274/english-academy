@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/supabase';
-import { sendLineNotify, buildMakeupCompleteMessage } from '@/lib/notifications';
 import type { MakeupClass, Student } from '@/lib/db';
 
 interface MakeupWithStudent extends MakeupClass {
@@ -46,12 +45,6 @@ export default function MakeupPage() {
       completed: true,
       completed_at: new Date().toISOString(),
     }).eq('id', mk.id);
-
-    // LINE notify
-    if (mk.students.parent_line_notify_token) {
-      const msg = buildMakeupCompleteMessage(mk.students, mk.topic, window.location.origin);
-      await sendLineNotify(mk.students.parent_line_notify_token, msg);
-    }
 
     setCompleting(p => ({ ...p, [mk.id]: false }));
     load();

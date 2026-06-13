@@ -88,6 +88,16 @@ export interface FeedbackRow {
   students?: Student;
 }
 
+export interface InClassAssessment {
+  id: string;
+  created_at: string;
+  session_id: string;
+  student_id: string;
+  skill_ratings: Record<string, number>;
+  behavior_tags: string[];
+  quick_note: string | null;
+}
+
 export const GROUP_LABELS: Record<string, string> = {
   p46: 'ป.4–ป.6',
   m13: 'ม.1–ม.3',

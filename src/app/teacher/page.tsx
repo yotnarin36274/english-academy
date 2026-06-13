@@ -61,6 +61,14 @@ export default function TeacherHubPage() {
       color: 'border-purple-100 hover:border-purple-300',
     },
     {
+      href: '/teacher/inclass',
+      icon: '⭐',
+      label: 'ประเมินระหว่างคาบ',
+      desc: 'ให้ดาว ติด Tag พฤติกรรม โน้ตระหว่างสอน',
+      badge: null,
+      color: 'border-yellow-100 hover:border-yellow-300',
+    },
+    {
       href: '/dashboard',
       icon: '📊',
       label: 'ผลสอบวัดระดับ',

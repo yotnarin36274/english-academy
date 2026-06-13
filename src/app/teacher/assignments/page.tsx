@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/supabase';
-import { sendLineNotify, buildNewAssignmentMessage } from '@/lib/notifications';
 import type { Assignment, Student } from '@/lib/db';
 
 const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
@@ -90,34 +89,7 @@ export default function TeacherAssignmentsPage() {
       return;
     }
 
-    // Notify parents via LINE
-    let studentsToNotify: Student[] = [];
-
-    if (targetMode === 'groups') {
-      const groups = targetGroups.length > 0 ? targetGroups : ['p46', 'm13', 'm46'];
-      const { data } = await db()
-        .from('students')
-        .select('*')
-        .in('group_key', groups)
-        .eq('is_active', true)
-        .not('parent_line_notify_token', 'is', null);
-      studentsToNotify = (data as Student[]) ?? [];
-    } else {
-      studentsToNotify = allStudents.filter(
-        s => targetStudentIds.includes(s.id) && s.parent_line_notify_token
-      );
-    }
-
-    let sent = 0;
-    for (const stu of studentsToNotify) {
-      if (stu.parent_line_notify_token) {
-        const msg = buildNewAssignmentMessage(stu, asg, window.location.origin);
-        const ok = await sendLineNotify(stu.parent_line_notify_token, msg);
-        if (ok) sent++;
-      }
-    }
-
-    setNotifyStatus(`✅ สร้างงานแล้ว${sent > 0 ? ` · ส่ง LINE แจ้ง ${sent} ครอบครัว` : ''}`);
+    setNotifyStatus('✅ สร้างงานเรียบร้อย');
     setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100');
     setTargetMode('groups'); setTargetGroups([]); setTargetStudentIds([]);
     setStudentSearch('');
@@ -284,9 +256,6 @@ export default function TeacherAssignmentsPage() {
                             </p>
                             <p className="text-xs text-gray-400">{s.grade} · {s.student_code}</p>
                           </div>
-                          {s.parent_line_notify_token && (
-                            <span className="text-xs text-green-500 shrink-0">LINE ✓</span>
-                          )}
                         </button>
                       );
                     })}
@@ -312,7 +281,7 @@ export default function TeacherAssignmentsPage() {
               <button onClick={createAssignment}
                 disabled={!title.trim() || saving || (targetMode === 'students' && targetStudentIds.length === 0)}
                 className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">
-                {saving ? 'กำลังสร้าง...' : '✅ สร้างงาน + แจ้ง LINE'}
+                {saving ? 'กำลังสร้าง...' : '✅ สร้างงาน'}
               </button>
             </div>
           </div>

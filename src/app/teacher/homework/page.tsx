@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/supabase';
-import { sendLineNotify, buildFeedbackMessage } from '@/lib/notifications';
 import type { HomeworkSubmission, Student, Assignment, FeedbackRow } from '@/lib/db';
 
 interface SubWithJoins extends HomeworkSubmission {
@@ -95,7 +94,7 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
   const [comment, setComment] = useState(existing?.comment ?? '');
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [notifySent, setNotifySent] = useState(false);
+
   const [saveError, setSaveError] = useState('');
 
   async function save() {
@@ -115,16 +114,6 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
     const { error: fbErr } = await db().from('feedback').upsert(fbData, { onConflict: 'submission_id' });
     if (fbErr) { setSaveError(`บันทึกไม่สำเร็จ: ${fbErr.message}`); setSaving(false); return; }
     await db().from('homework_submissions').update({ status: 'reviewed' }).eq('id', sub.id);
-
-    // LINE Notify
-    const token = sub.students.parent_line_notify_token;
-    if (token) {
-      const baseUrl = window.location.origin;
-      const mockFb: FeedbackRow = { ...fbData, id: '', created_at: '' };
-      const msg = buildFeedbackMessage(sub.students, sub.assignments, mockFb, baseUrl);
-      const ok = await sendLineNotify(token, msg);
-      if (ok) setNotifySent(true);
-    }
 
     setSaving(false);
     onDone();
@@ -162,12 +151,6 @@ function GradePanel({ sub, onDone }: { sub: SubWithJoins; onDone: () => void }) 
           className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-blue-400" />
       </div>
       {saveError && <p className="text-xs text-red-500 font-medium">❌ {saveError}</p>}
-      {notifySent && (
-        <p className="text-xs text-green-600 font-medium">✅ ส่ง LINE แจ้งผู้ปกครองแล้ว</p>
-      )}
-      {sub.students.parent_line_notify_token && !notifySent && (
-        <p className="text-xs text-gray-400">จะส่ง LINE แจ้งผู้ปกครองอัตโนมัติเมื่อกดบันทึก</p>
-      )}
       {existing && (
         <div className="flex justify-end pt-1">
           <button onClick={deleteFeedback} disabled={deleting}
