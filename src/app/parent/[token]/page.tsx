@@ -112,7 +112,7 @@ export default function ParentPortalPage() {
     const { data: stu } = await db()
       .from('students')
       .select('*')
-      .eq('parent_token', token)
+      .eq('student_code', token.toUpperCase())
       .single();
 
     if (!stu) { setLoading(false); return; }

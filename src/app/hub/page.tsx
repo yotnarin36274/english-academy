@@ -6,6 +6,7 @@ const TEACHER_PASSWORD = 'ENGspark2025';
 
 export default function HubPage() {
   const [studentCode, setStudentCode] = useState('');
+  const [parentCode, setParentCode] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [pass, setPass] = useState('');
   const [passError, setPassError] = useState(false);
@@ -13,6 +14,11 @@ export default function HubPage() {
   function goToHomework() {
     const code = studentCode.trim().toUpperCase();
     if (code) window.location.href = `/homework/${code}`;
+  }
+
+  function goToParent() {
+    const code = parentCode.trim().toUpperCase();
+    if (code) window.location.href = `/parent/${code}`;
   }
 
   function handleTeacherClick() {
@@ -132,7 +138,7 @@ export default function HubPage() {
         </div>
 
         {/* Parent */}
-        <div className="bg-white rounded-2xl shadow-sm border-2 border-purple-100 p-5">
+        <div className="bg-white rounded-2xl shadow-sm border-2 border-purple-100 p-5 space-y-3">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 rounded-2xl bg-purple-50 flex items-center justify-center text-3xl shrink-0">
               👨‍👩‍👧
@@ -142,11 +148,23 @@ export default function HubPage() {
               <p className="text-sm text-gray-400">ติดตามพัฒนาการบุตรหลาน</p>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-3 bg-purple-50 rounded-xl px-4 py-2.5 border border-purple-100">
-            ใช้ลิ้งค์ที่ครูแชร์ให้ผ่าน LINE ครับ
-            <br />
-            <span className="text-purple-400 font-mono">/parent/[token]</span>
-          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={parentCode}
+              onChange={e => setParentCode(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && goToParent()}
+              placeholder="รหัสนักเรียน เช่น ENG001"
+              className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400 font-mono uppercase placeholder:normal-case placeholder:font-sans"
+            />
+            <button
+              onClick={goToParent}
+              disabled={!parentCode.trim()}
+              className="px-4 py-2.5 bg-purple-600 disabled:opacity-40 text-white text-sm font-semibold rounded-xl hover:bg-purple-700 transition-colors"
+            >
+              เข้าสู่ระบบ
+            </button>
+          </div>
         </div>
       </div>
 
