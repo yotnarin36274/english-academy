@@ -2,16 +2,72 @@
 
 import { useState } from 'react';
 
+const TEACHER_PASSWORD = 'ENGspark2025';
+
 export default function HubPage() {
   const [studentCode, setStudentCode] = useState('');
+  const [showPass, setShowPass] = useState(false);
+  const [pass, setPass] = useState('');
+  const [passError, setPassError] = useState(false);
 
   function goToHomework() {
     const code = studentCode.trim().toUpperCase();
     if (code) window.location.href = `/homework/${code}`;
   }
 
+  function handleTeacherClick() {
+    if (sessionStorage.getItem('teacher_auth') === '1') {
+      window.location.href = '/teacher';
+    } else {
+      setShowPass(true);
+      setPass('');
+      setPassError(false);
+    }
+  }
+
+  function submitPassword() {
+    if (pass === TEACHER_PASSWORD) {
+      sessionStorage.setItem('teacher_auth', '1');
+      window.location.href = '/teacher';
+    } else {
+      setPassError(true);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-gradient-to-b from-teal-50 to-white flex flex-col items-center justify-center px-4 py-12">
+      {/* Password modal */}
+      {showPass && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-xs space-y-4">
+            <div className="text-center">
+              <div className="text-4xl mb-2">🔐</div>
+              <p className="font-bold text-gray-800">รหัสผ่านครู</p>
+            </div>
+            <input
+              type="password"
+              value={pass}
+              onChange={e => { setPass(e.target.value); setPassError(false); }}
+              onKeyDown={e => e.key === 'Enter' && submitPassword()}
+              autoFocus
+              placeholder="รหัสผ่าน"
+              className={`w-full border rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${passError ? 'border-red-400' : 'border-gray-300'}`}
+            />
+            {passError && <p className="text-red-500 text-xs text-center">รหัสผ่านไม่ถูกต้องครับ</p>}
+            <div className="flex gap-2">
+              <button onClick={() => setShowPass(false)}
+                className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+                ยกเลิก
+              </button>
+              <button onClick={submitPassword}
+                className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                เข้าสู่ระบบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Logo */}
       <div className="text-center mb-10">
         <div className="w-20 h-20 rounded-3xl bg-teal-600 flex items-center justify-center text-white text-4xl font-black mx-auto mb-4 shadow-lg shadow-teal-200">
@@ -23,9 +79,9 @@ export default function HubPage() {
 
       <div className="w-full max-w-sm space-y-3">
         {/* Teacher */}
-        <a
-          href="/teacher"
-          className="flex items-center gap-4 bg-white rounded-2xl shadow-sm border-2 border-blue-100 hover:border-blue-300 p-5 transition-colors group"
+        <button
+          onClick={handleTeacherClick}
+          className="w-full flex items-center gap-4 bg-white rounded-2xl shadow-sm border-2 border-blue-100 hover:border-blue-300 p-5 transition-colors group text-left"
         >
           <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-3xl shrink-0 group-hover:bg-blue-100 transition-colors">
             👨‍🏫
@@ -35,7 +91,7 @@ export default function HubPage() {
             <p className="text-sm text-gray-400">ตรวจงาน · เช็คชื่อ · จัดการนักเรียน</p>
           </div>
           <span className="text-gray-300 group-hover:text-blue-400 transition-colors">→</span>
-        </a>
+        </button>
 
         {/* Student */}
         <div className="bg-white rounded-2xl shadow-sm border-2 border-green-100 p-5 space-y-3">

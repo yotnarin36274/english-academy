@@ -95,7 +95,7 @@ export default function StudentHomeworkPage() {
   async function withdrawSubmission(assignmentId: string, submissionId: string) {
     setWithdrawing(assignmentId);
     await db().from('homework_submissions').delete().eq('id', submissionId);
-    router.push(`/homework/${studentCode}/submit/${assignmentId}`);
+    router.push(`/homework/${studentCode}/submit/${assignmentId}?resubmit=1`);
   }
 
   const today = new Date().toISOString().split('T')[0];

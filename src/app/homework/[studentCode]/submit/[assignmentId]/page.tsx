@@ -88,9 +88,12 @@ export default function SubmitHomeworkPage() {
       if (!asg) { router.replace(`/homework/${studentCode}`); return; }
       setAssignment(asg);
 
-      const { data: existing } = await db().from('homework_submissions')
-        .select('id').eq('student_id', stu.id).eq('assignment_id', assignmentId).single();
-      if (existing) { router.replace(`/homework/${studentCode}`); }
+      const isResubmit = new URLSearchParams(window.location.search).get('resubmit') === '1';
+      if (!isResubmit) {
+        const { data: existing } = await db().from('homework_submissions')
+          .select('id').eq('student_id', stu.id).eq('assignment_id', assignmentId).single();
+        if (existing) { router.replace(`/homework/${studentCode}`); return; }
+      }
     }
     load();
   // eslint-disable-next-line react-hooks/exhaustive-deps
