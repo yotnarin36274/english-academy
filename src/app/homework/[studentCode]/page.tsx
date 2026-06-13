@@ -17,6 +17,7 @@ export default function StudentHomeworkPage() {
   const [assignments, setAssignments] = useState<AssignmentWithStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -91,6 +92,13 @@ export default function StudentHomeworkPage() {
     setRefreshing(false);
   }
 
+  async function withdrawSubmission(assignmentId: string, submissionId: string) {
+    setWithdrawing(assignmentId);
+    await db().from('homework_submissions').delete().eq('id', submissionId);
+    router.push(`/homework/${studentCode}/submit/${assignmentId}`);
+  }
+
+  const today = new Date().toISOString().split('T')[0];
   const pending = assignments.filter(a => !a.submission);
   const submitted = assignments.filter(a => a.submission && !a.feedback);
   const reviewed = assignments.filter(a => a.feedback);
@@ -158,17 +166,29 @@ export default function StudentHomeworkPage() {
               ⏳ รอครูตรวจ ({submitted.length})
             </h2>
             <div className="space-y-2">
-              {submitted.map(a => (
-                <div key={a.id} className="bg-white rounded-xl border border-amber-100 p-4 flex items-center gap-3">
-                  <span className="text-2xl">📬</span>
-                  <div>
-                    <p className="font-medium text-gray-800">{a.title}</p>
-                    <p className="text-xs text-gray-400">
-                      ส่งแล้ว {new Date(a.submission!.submitted_at).toLocaleDateString('th-TH')}
-                    </p>
+              {submitted.map(a => {
+                const canEdit = !a.due_date || a.due_date >= today;
+                return (
+                  <div key={a.id} className="bg-white rounded-xl border border-amber-100 p-4 flex items-center gap-3">
+                    <span className="text-2xl shrink-0">📬</span>
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-800">{a.title}</p>
+                      <p className="text-xs text-gray-400">
+                        ส่งแล้ว {new Date(a.submission!.submitted_at).toLocaleDateString('th-TH')}
+                        {a.due_date && ` · ครบกำหนด ${new Date(a.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}`}
+                      </p>
+                    </div>
+                    {canEdit && (
+                      <button
+                        onClick={() => withdrawSubmission(a.id, a.submission!.id)}
+                        disabled={withdrawing === a.id}
+                        className="shrink-0 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        {withdrawing === a.id ? '...' : '✏️ แก้ไขงาน'}
+                      </button>
+                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}

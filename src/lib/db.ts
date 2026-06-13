@@ -10,6 +10,41 @@ export interface Student {
   parent_token: string;
   notes: string | null;
   is_active: boolean;
+  total_course_hours: number | null;
+  session_type: 'fixed' | 'hourly';
+}
+
+export interface ClassSession {
+  id: string;
+  created_at: string;
+  session_date: string;
+  topic: string;
+  duration_hours: number;
+  group_key: string | null;
+  student_ids: string[];
+  week_number: number | null;
+  notes: string | null;
+}
+
+export interface Attendance {
+  id: string;
+  created_at: string;
+  session_id: string;
+  student_id: string;
+  status: 'present' | 'absent' | 'leave';
+}
+
+export interface MakeupClass {
+  id: string;
+  created_at: string;
+  attendance_id: string;
+  student_id: string;
+  session_id: string | null;
+  topic: string;
+  duration_hours: number;
+  completed: boolean;
+  completed_at: string | null;
+  notes: string | null;
 }
 
 export interface Assignment {

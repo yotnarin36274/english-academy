@@ -185,8 +185,8 @@ export default function TeacherHomeworkPage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'pending' | 'reviewed'>('pending');
   const [lightbox, setLightbox] = useState<string[] | null>(null);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [resetting, setResetting] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     load();
@@ -218,6 +218,15 @@ export default function TeacherHomeworkPage() {
     setLoading(false);
   }
 
+  async function resetSubmission(subId: string) {
+    if (!window.confirm('ล้างงานที่ส่งนี้?\nนักเรียนจะต้องส่งใหม่ (feedback จะถูกลบด้วย)')) return;
+    setResetting(p => ({ ...p, [subId]: true }));
+    await db().from('feedback').delete().eq('submission_id', subId);
+    await db().from('homework_submissions').delete().eq('id', subId);
+    setResetting(p => ({ ...p, [subId]: false }));
+    load();
+  }
+
   const filtered = submissions.filter(s =>
     filter === 'all' ? true : filter === 'pending' ? s.status === 'pending' : s.status === 'reviewed'
   );
@@ -232,11 +241,9 @@ export default function TeacherHomeworkPage() {
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-center justify-between mb-3">
-            <h1 className="text-lg font-bold text-gray-800">📋 ตรวจการบ้าน</h1>
-            <div className="flex gap-2 text-xs">
-              <a href="/teacher/assignments" className="text-blue-600 hover:underline">จัดการงาน</a>
-              <span className="text-gray-300">|</span>
-              <a href="/teacher/students" className="text-blue-600 hover:underline">นักเรียน</a>
+            <div className="flex items-center gap-3">
+              <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
+              <h1 className="text-lg font-bold text-gray-800">📋 ตรวจการบ้าน</h1>
             </div>
           </div>
           <div className="flex gap-2">
@@ -305,6 +312,15 @@ export default function TeacherHomeworkPage() {
                   )}
 
                   <GradePanel key={`${sub.id}-${sub.feedback?.[0]?.id ?? 'new'}`} sub={sub} onDone={load} />
+
+                  <div className="mt-3 pt-3 border-t border-gray-100">
+                    <button
+                      onClick={() => resetSubmission(sub.id)}
+                      disabled={resetting[sub.id]}
+                      className="w-full text-sm text-orange-500 hover:text-orange-600 hover:bg-orange-50 py-2 rounded-xl transition-colors disabled:opacity-50 border border-orange-100">
+                      {resetting[sub.id] ? 'กำลังรีเซ็ต...' : '🔄 ล้างงานที่ส่ง — ให้นักเรียนส่งใหม่'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

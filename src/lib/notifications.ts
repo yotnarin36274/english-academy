@@ -1,4 +1,4 @@
-import type { Student, Assignment, FeedbackRow } from './db';
+import type { Student, Assignment, FeedbackRow, ClassSession } from './db';
 
 export async function sendLineNotify(token: string, message: string): Promise<boolean> {
   try {
@@ -48,4 +48,56 @@ ${baseUrl}/parent/${student.parent_token}
 
 export function buildFacebookTemplate(student: Student, assignment: Assignment, fb: FeedbackRow, baseUrl: string): string {
   return buildFeedbackMessage(student, assignment, fb, baseUrl);
+}
+
+export function buildAbsentMessage(student: Student, session: ClassSession, baseUrl: string): string {
+  const dateStr = new Date(session.session_date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
+  return `⚠️ ENG SPARK — แจ้งการขาดเรียน
+━━━━━━━━━━━━━━━━━
+น้อง${student.nickname} (${student.grade}) ไม่ได้เข้าเรียนครับ
+
+📅 วัน: ${dateStr}
+📖 หัวข้อ: ${session.topic}
+⏱ ระยะเวลา: ${session.duration_hours} ชั่วโมง
+
+🔁 ต้องนัด Make-up Class ${session.duration_hours} ชม. ในหัวข้อนี้
+ติดต่อครูเพื่อนัดวันเรียนชดเชยได้เลยครับ
+
+ดูพัฒนาการน้องได้ที่:
+${baseUrl}/parent/${student.parent_token}
+
+— ครูภาษาอังกฤษ ENG SPARK`;
+}
+
+export function buildLeaveMessage(student: Student, session: ClassSession, baseUrl: string): string {
+  const dateStr = new Date(session.session_date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' });
+  return `📋 ENG SPARK — แจ้งการลาเรียน
+━━━━━━━━━━━━━━━━━
+น้อง${student.nickname} (${student.grade}) ลาเรียนครับ
+
+📅 วัน: ${dateStr}
+📖 หัวข้อ: ${session.topic}
+⏱ ระยะเวลา: ${session.duration_hours} ชั่วโมง
+
+🔁 ต้องนัด Make-up Class ${session.duration_hours} ชม. ในหัวข้อนี้
+ติดต่อครูเพื่อนัดวันเรียนชดเชยได้เลยครับ
+
+ดูพัฒนาการน้องได้ที่:
+${baseUrl}/parent/${student.parent_token}
+
+— ครูภาษาอังกฤษ ENG SPARK`;
+}
+
+export function buildMakeupCompleteMessage(student: Student, topic: string, baseUrl: string): string {
+  return `✅ ENG SPARK — เรียน Make-up เสร็จแล้ว
+━━━━━━━━━━━━━━━━━
+น้อง${student.nickname} (${student.grade}) ได้เรียน Make-up Class เสร็จแล้วครับ
+
+📖 หัวข้อ: ${topic}
+📅 วันที่เรียนชดเชย: ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}
+
+ดูพัฒนาการน้องได้ที่:
+${baseUrl}/parent/${student.parent_token}
+
+— ครูภาษาอังกฤษ ENG SPARK`;
 }

@@ -18,8 +18,31 @@ export interface Database {
           level: string;
           wrong_questions: number[];
         };
-        Insert: Omit<Database['public']['Tables']['submissions']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['submissions']['Row']>;
+        Insert: {
+          session_date: string;
+          group_key: string;
+          nickname: string;
+          full_name?: string | null;
+          grade: string;
+          answers: Record<string, string>;
+          score: number;
+          total: number;
+          level: string;
+          wrong_questions: number[];
+        };
+        Update: {
+          session_date?: string;
+          group_key?: string;
+          nickname?: string;
+          full_name?: string | null;
+          grade?: string;
+          answers?: Record<string, string>;
+          score?: number;
+          total?: number;
+          level?: string;
+          wrong_questions?: number[];
+        };
+        Relationships: [];
       };
       students: {
         Row: {
@@ -34,9 +57,36 @@ export interface Database {
           parent_token: string;
           notes: string | null;
           is_active: boolean;
+          total_course_hours: number | null;
+          session_type: 'fixed' | 'hourly';
         };
-        Insert: Omit<Database['public']['Tables']['students']['Row'], 'id' | 'created_at' | 'parent_token'> & { parent_token?: string };
-        Update: Partial<Database['public']['Tables']['students']['Row']>;
+        Insert: {
+          student_code: string;
+          nickname: string;
+          full_name?: string | null;
+          grade: string;
+          group_key: string;
+          parent_line_notify_token?: string | null;
+          parent_token?: string;
+          notes?: string | null;
+          is_active?: boolean;
+          total_course_hours?: number | null;
+          session_type?: 'fixed' | 'hourly';
+        };
+        Update: {
+          student_code?: string;
+          nickname?: string;
+          full_name?: string | null;
+          grade?: string;
+          group_key?: string;
+          parent_line_notify_token?: string | null;
+          parent_token?: string;
+          notes?: string | null;
+          is_active?: boolean;
+          total_course_hours?: number | null;
+          session_type?: 'fixed' | 'hourly';
+        };
+        Relationships: [];
       };
       assignments: {
         Row: {
@@ -50,8 +100,25 @@ export interface Database {
           max_score: number;
           is_active: boolean;
         };
-        Insert: Omit<Database['public']['Tables']['assignments']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['assignments']['Row']>;
+        Insert: {
+          title: string;
+          description?: string | null;
+          due_date?: string | null;
+          target_groups?: string[];
+          target_student_ids?: string[];
+          max_score?: number;
+          is_active?: boolean;
+        };
+        Update: {
+          title?: string;
+          description?: string | null;
+          due_date?: string | null;
+          target_groups?: string[];
+          target_student_ids?: string[];
+          max_score?: number;
+          is_active?: boolean;
+        };
+        Relationships: [];
       };
       homework_submissions: {
         Row: {
@@ -61,11 +128,26 @@ export interface Database {
           assignment_id: string;
           image_urls: string[];
           note: string | null;
-          status: string;
+          status: 'pending' | 'reviewed';
           submitted_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['homework_submissions']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['homework_submissions']['Row']>;
+        Insert: {
+          student_id: string;
+          assignment_id: string;
+          image_urls?: string[];
+          note?: string | null;
+          status?: 'pending' | 'reviewed';
+          submitted_at?: string;
+        };
+        Update: {
+          student_id?: string;
+          assignment_id?: string;
+          image_urls?: string[];
+          note?: string | null;
+          status?: string;
+          submitted_at?: string;
+        };
+        Relationships: [];
       };
       feedback: {
         Row: {
@@ -79,8 +161,112 @@ export interface Database {
           comment: string | null;
           reviewed_at: string;
         };
-        Insert: Omit<Database['public']['Tables']['feedback']['Row'], 'id' | 'created_at'>;
-        Update: Partial<Database['public']['Tables']['feedback']['Row']>;
+        Insert: {
+          submission_id: string;
+          student_id: string;
+          assignment_id: string;
+          score?: number | null;
+          max_score: number;
+          comment?: string | null;
+          reviewed_at?: string;
+        };
+        Update: {
+          submission_id?: string;
+          student_id?: string;
+          assignment_id?: string;
+          score?: number | null;
+          max_score?: number;
+          comment?: string | null;
+          reviewed_at?: string;
+        };
+        Relationships: [];
+      };
+      class_sessions: {
+        Row: {
+          id: string;
+          created_at: string;
+          session_date: string;
+          topic: string;
+          duration_hours: number;
+          group_key: string | null;
+          student_ids: string[];
+          week_number: number | null;
+          notes: string | null;
+        };
+        Insert: {
+          session_date: string;
+          topic: string;
+          duration_hours: number;
+          group_key?: string | null;
+          student_ids?: string[];
+          week_number?: number | null;
+          notes?: string | null;
+        };
+        Update: {
+          session_date?: string;
+          topic?: string;
+          duration_hours?: number;
+          group_key?: string | null;
+          student_ids?: string[];
+          week_number?: number | null;
+          notes?: string | null;
+        };
+        Relationships: [];
+      };
+      attendance: {
+        Row: {
+          id: string;
+          created_at: string;
+          session_id: string;
+          student_id: string;
+          status: 'present' | 'absent' | 'leave';
+        };
+        Insert: {
+          session_id: string;
+          student_id: string;
+          status: 'present' | 'absent' | 'leave';
+        };
+        Update: {
+          session_id?: string;
+          student_id?: string;
+          status?: 'present' | 'absent' | 'leave';
+        };
+        Relationships: [];
+      };
+      makeup_classes: {
+        Row: {
+          id: string;
+          created_at: string;
+          attendance_id: string;
+          student_id: string;
+          session_id: string | null;
+          topic: string;
+          duration_hours: number;
+          completed: boolean;
+          completed_at: string | null;
+          notes: string | null;
+        };
+        Insert: {
+          attendance_id: string;
+          student_id: string;
+          session_id?: string | null;
+          topic: string;
+          duration_hours: number;
+          completed?: boolean;
+          completed_at?: string | null;
+          notes?: string | null;
+        };
+        Update: {
+          attendance_id?: string;
+          student_id?: string;
+          session_id?: string | null;
+          topic?: string;
+          duration_hours?: number;
+          completed?: boolean;
+          completed_at?: string | null;
+          notes?: string | null;
+        };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;

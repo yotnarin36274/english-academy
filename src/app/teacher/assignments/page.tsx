@@ -23,6 +23,9 @@ export default function TeacherAssignmentsPage() {
   const [studentSearch, setStudentSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [notifyStatus, setNotifyStatus] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ title: '', description: '', dueDate: '', maxScore: '100' });
+  const [editSaving, setEditSaving] = useState(false);
 
   useEffect(() => {
     load();
@@ -123,6 +126,30 @@ export default function TeacherAssignmentsPage() {
     load();
   }
 
+  function startEdit(a: Assignment) {
+    setEditForm({
+      title: a.title,
+      description: a.description ?? '',
+      dueDate: a.due_date ?? '',
+      maxScore: a.max_score.toString(),
+    });
+    setEditingId(a.id);
+  }
+
+  async function saveEdit() {
+    if (!editingId || !editForm.title.trim()) return;
+    setEditSaving(true);
+    await db().from('assignments').update({
+      title: editForm.title.trim(),
+      description: editForm.description.trim() || null,
+      due_date: editForm.dueDate || null,
+      max_score: parseInt(editForm.maxScore) || 100,
+    }).eq('id', editingId);
+    setEditSaving(false);
+    setEditingId(null);
+    load();
+  }
+
   async function toggleActive(a: Assignment) {
     await db().from('assignments').update({ is_active: !a.is_active }).eq('id', a.id);
     load();
@@ -140,7 +167,7 @@ export default function TeacherAssignmentsPage() {
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/teacher/homework" className="text-gray-400 hover:text-gray-600">←</a>
+            <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">📝 จัดการการบ้าน</h1>
           </div>
           <button onClick={() => setShowForm(!showForm)}
@@ -297,6 +324,50 @@ export default function TeacherAssignmentsPage() {
           const namedStudents = hasIndividuals
             ? allStudents.filter(s => a.target_student_ids.includes(s.id))
             : [];
+
+          // Inline edit form
+          if (editingId === a.id) {
+            return (
+              <div key={a.id} className="bg-white rounded-2xl shadow-sm p-5 border-2 border-blue-200 space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-semibold text-gray-800">✏️ แก้ไขงาน</span>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">ชื่องาน *</label>
+                  <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">รายละเอียด</label>
+                  <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="text-xs font-medium text-gray-600">วันครบกำหนด</label>
+                    <input type="date" value={editForm.dueDate} onChange={e => setEditForm(f => ({ ...f, dueDate: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                  <div className="w-28">
+                    <label className="text-xs font-medium text-gray-600">คะแนนเต็ม</label>
+                    <input type="number" min="1" value={editForm.maxScore} onChange={e => setEditForm(f => ({ ...f, maxScore: e.target.value }))}
+                      className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  </div>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  <button onClick={() => setEditingId(null)}
+                    className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
+                    ยกเลิก
+                  </button>
+                  <button onClick={saveEdit} disabled={editSaving || !editForm.title.trim()}
+                    className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                    {editSaving ? 'กำลังบันทึก...' : '💾 บันทึก'}
+                  </button>
+                </div>
+              </div>
+            );
+          }
+
           return (
             <div key={a.id} className={`bg-white rounded-2xl shadow-sm p-4 border ${!a.is_active ? 'opacity-50' : ''}`}>
               <div className="flex items-start justify-between gap-3">
@@ -331,6 +402,10 @@ export default function TeacherAssignmentsPage() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
+                  <button onClick={() => startEdit(a)}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
+                    ✏️ แก้ไข
+                  </button>
                   <button onClick={() => toggleActive(a)}
                     className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${a.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                     {a.is_active ? '✅ เปิดอยู่' : '🔒 ปิดแล้ว'}

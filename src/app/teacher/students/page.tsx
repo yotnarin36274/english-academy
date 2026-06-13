@@ -22,6 +22,7 @@ export default function TeacherStudentsPage() {
   const [form, setForm] = useState({
     student_code: '', nickname: '', full_name: '', grade: 'ป.4',
     parent_line_notify_token: '', notes: '',
+    total_course_hours: '', session_type: 'fixed' as 'fixed' | 'hourly',
   });
 
   useEffect(() => { load(); }, []);
@@ -46,9 +47,11 @@ export default function TeacherStudentsPage() {
       parent_line_notify_token: form.parent_line_notify_token.trim() || null,
       notes: form.notes.trim() || null,
       is_active: true,
+      total_course_hours: form.total_course_hours ? parseFloat(form.total_course_hours) : null,
+      session_type: form.session_type,
     });
     setSaving(false);
-    setForm({ student_code: '', nickname: '', full_name: '', grade: 'ป.4', parent_line_notify_token: '', notes: '' });
+    setForm({ student_code: '', nickname: '', full_name: '', grade: 'ป.4', parent_line_notify_token: '', notes: '', total_course_hours: '', session_type: 'fixed' });
     setShowForm(false);
     load();
   }
@@ -62,9 +65,9 @@ export default function TeacherStudentsPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <a href="/teacher/homework" className="text-gray-400 hover:text-gray-600">←</a>
+            <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">👥 นักเรียน ({students.filter(s => s.is_active).length})</h1>
           </div>
           <button onClick={() => setShowForm(!showForm)}
@@ -74,7 +77,7 @@ export default function TeacherStudentsPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 mt-4 space-y-4">
+      <div className="max-w-4xl mx-auto px-4 mt-4 space-y-4">
         {/* Add form */}
         {showForm && (
           <div className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
@@ -106,6 +109,22 @@ export default function TeacherStudentsPage() {
                 <input value={form.full_name} onChange={e => setField('full_name', e.target.value)}
                   placeholder="ไม่บังคับ"
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-600">ชม.ต่อ Course</label>
+                <input value={form.total_course_hours} onChange={e => setField('total_course_hours', e.target.value)}
+                  type="number" min="0" step="0.5" placeholder="เช่น 20"
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">ประเภท Session</label>
+                <select value={form.session_type} onChange={e => setField('session_type', e.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  <option value="fixed">แบบ Package (กำหนดชม.)</option>
+                  <option value="hourly">รายชั่วโมง</option>
+                </select>
               </div>
             </div>
             <div>
