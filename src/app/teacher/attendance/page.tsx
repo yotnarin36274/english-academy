@@ -15,6 +15,7 @@ const STATUS_CONFIG = {
 interface StudentWithAttendance extends Student {
   attendanceId?: string;
   status?: 'present' | 'absent' | 'leave';
+  attendedHours?: number;
 }
 
 export default function AttendancePage() {
@@ -69,10 +70,28 @@ export default function AttendancePage() {
     const attMap = new Map<string, Attendance>();
     (attData ?? []).forEach((a: Attendance) => attMap.set(a.student_id, a));
 
+    // Compute total attended hours per student across all sessions
+    const studentIds = students.map(s => s.id);
+    const { data: allPresent } = await db()
+      .from('attendance').select('student_id, session_id')
+      .in('student_id', studentIds).eq('status', 'present');
+    const presentSessionIds = [...new Set((allPresent ?? []).map((a: {session_id: string}) => a.session_id))];
+    let sessionHoursMap = new Map<string, number>();
+    if (presentSessionIds.length > 0) {
+      const { data: sData } = await db()
+        .from('class_sessions').select('id, duration_hours').in('id', presentSessionIds);
+      (sData ?? []).forEach((s: {id: string; duration_hours: number}) => sessionHoursMap.set(s.id, s.duration_hours));
+    }
+    const attendedMap = new Map<string, number>();
+    (allPresent ?? []).forEach((a: {student_id: string; session_id: string}) => {
+      attendedMap.set(a.student_id, (attendedMap.get(a.student_id) ?? 0) + (sessionHoursMap.get(a.session_id) ?? 0));
+    });
+
     setSessionStudents(students.map(s => ({
       ...s,
       attendanceId: attMap.get(s.id)?.id,
       status: attMap.get(s.id)?.status,
+      attendedHours: attendedMap.get(s.id) ?? 0,
     })));
     setNotified({});
   }
@@ -88,10 +107,15 @@ export default function AttendancePage() {
       status,
     }, { onConflict: 'session_id,student_id' }).select().single();
 
-    // Update local state immediately
-    setSessionStudents(prev => prev.map(s =>
-      s.id === stu.id ? { ...s, status, attendanceId: (attRow as Attendance)?.id ?? s.attendanceId } : s
-    ));
+    // Update local state immediately (including attended hours)
+    const thisDuration = selectedSession.duration_hours;
+    setSessionStudents(prev => prev.map(s => {
+      if (s.id !== stu.id) return s;
+      let newHours = s.attendedHours ?? 0;
+      if (status === 'present' && prevStatus !== 'present') newHours += thisDuration;
+      else if (status !== 'present' && prevStatus === 'present') newHours = Math.max(0, newHours - thisDuration);
+      return { ...s, status, attendanceId: (attRow as Attendance)?.id ?? s.attendanceId, attendedHours: newHours };
+    }));
 
     // Handle makeup class creation/deletion
     if ((status === 'absent' || status === 'leave') && prevStatus === 'present') {
@@ -304,7 +328,15 @@ export default function AttendancePage() {
                       <p className="font-semibold text-gray-800">{stu.nickname}
                         {stu.full_name && <span className="text-xs text-gray-400 ml-1">({stu.full_name})</span>}
                       </p>
-                      <p className="text-xs text-gray-400">{stu.grade} · {hoursLabel(stu)}</p>
+                      <p className="text-xs text-gray-400">{stu.grade}
+                        {stu.session_type === 'fixed' && stu.total_course_hours ? (
+                          <span className="ml-1 font-medium text-blue-500">
+                            · เหลือ {Math.max(0, stu.total_course_hours - (stu.attendedHours ?? 0))} / {stu.total_course_hours} ชม.
+                          </span>
+                        ) : stu.attendedHours ? (
+                          <span className="ml-1">· เรียน {stu.attendedHours} ชม.</span>
+                        ) : null}
+                      </p>
                     </div>
                     {notified[stu.id] && <span className="text-xs text-green-500">LINE ✓</span>}
                     {saving[stu.id] && <span className="text-xs text-gray-400">กำลังบันทึก...</span>}

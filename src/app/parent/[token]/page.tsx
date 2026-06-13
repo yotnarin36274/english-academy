@@ -96,6 +96,9 @@ export default function ParentPortalPage() {
   const [items, setItems] = useState<ProgressItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; duration_hours: number; status: string}>>([]);
+  const [makeups, setMakeups] = useState<Array<{id: string; topic: string; duration_hours: number}>>([]);
+  const [attendedHours, setAttendedHours] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -114,7 +117,7 @@ export default function ParentPortalPage() {
 
     if (!stu) { setLoading(false); return; }
     setStudent(stu);
-    await fetchItems(stu);
+    await Promise.all([fetchItems(stu), fetchSessionData(stu)]);
     setLoading(false);
     subscribeRealtime(stu);
   }
@@ -156,6 +159,34 @@ export default function ParentPortalPage() {
     });
     setItems(merged);
     setLastUpdated(new Date());
+  }
+
+  async function fetchSessionData(stu: Student) {
+    const { data: attData } = await db()
+      .from('attendance').select('status, session_id').eq('student_id', stu.id);
+    if (!attData?.length) { setSessions([]); setAttendedHours(0); setMakeups([]); return; }
+
+    const sessionIds = (attData as {status: string; session_id: string}[]).map(a => a.session_id);
+    const { data: sessionData } = await db()
+      .from('class_sessions').select('id, session_date, topic, duration_hours')
+      .in('id', sessionIds).order('session_date', { ascending: false });
+
+    const sMap = new Map((sessionData ?? []).map((s: {id: string; session_date: string; topic: string; duration_hours: number}) => [s.id, s]));
+    const merged = (attData as {status: string; session_id: string}[])
+      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, status: a.status } : null; })
+      .filter(Boolean) as {id: string; session_date: string; topic: string; duration_hours: number; status: string}[];
+    merged.sort((a, b) => b.session_date.localeCompare(a.session_date));
+    setSessions(merged);
+
+    const hours = (attData as {status: string; session_id: string}[])
+      .filter(a => a.status === 'present')
+      .reduce((sum, a) => sum + (sMap.get(a.session_id)?.duration_hours ?? 0), 0);
+    setAttendedHours(hours);
+
+    const { data: mkData } = await db()
+      .from('makeup_classes').select('id, topic, duration_hours')
+      .eq('student_id', stu.id).eq('completed', false);
+    setMakeups((mkData ?? []) as {id: string; topic: string; duration_hours: number}[]);
   }
 
   function subscribeRealtime(stu: Student) {
@@ -215,11 +246,74 @@ export default function ParentPortalPage() {
                 <p className="text-xl font-bold">{avgScore}%</p>
               </div>
             )}
+            {student.session_type === 'fixed' && student.total_course_hours ? (
+              <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center">
+                <p className="text-xs text-green-100">ชม.เหลือ</p>
+                <p className="text-xl font-bold">{Math.max(0, student.total_course_hours - attendedHours)}</p>
+              </div>
+            ) : attendedHours > 0 ? (
+              <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center">
+                <p className="text-xs text-green-100">ชม.เรียน</p>
+                <p className="text-xl font-bold">{attendedHours}</p>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 mt-5 space-y-5">
+        {/* Session history */}
+        {(student.total_course_hours || sessions.length > 0 || makeups.length > 0) && (
+          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700">📅 ชั่วโมงเรียน</h2>
+
+            {student.session_type === 'fixed' && student.total_course_hours ? (
+              <div>
+                <div className="flex justify-between text-sm mb-1.5">
+                  <span className="text-gray-500">เรียนแล้ว <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></span>
+                  <span className="font-semibold text-green-700">เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2.5">
+                  <div className="bg-green-500 h-2.5 rounded-full transition-all"
+                    style={{ width: `${Math.min(100, (attendedHours / student.total_course_hours) * 100)}%` }} />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">{attendedHours}/{student.total_course_hours} ชม.</p>
+              </div>
+            ) : attendedHours > 0 ? (
+              <p className="text-sm text-gray-600">รวมเรียน <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></p>
+            ) : null}
+
+            {makeups.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-orange-600 mb-1.5">🔁 Make-up คงค้าง ({makeups.length})</p>
+                {makeups.map(m => (
+                  <div key={m.id} className="text-xs bg-orange-50 border border-orange-100 rounded-lg px-3 py-1.5 text-orange-700 mb-1">
+                    {m.topic} · {m.duration_hours} ชม.
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {sessions.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">📋 ประวัติการเรียน</p>
+                <div className="space-y-1">
+                  {sessions.slice(0, 6).map(s => (
+                    <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                      <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
+                      <span className="text-gray-400 shrink-0 w-14">
+                        {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                      </span>
+                      <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
+                      <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Progress chart */}
         {reviewed.length >= 2 && (
           <div className="bg-white rounded-2xl shadow-sm p-4">
