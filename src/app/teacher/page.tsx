@@ -60,6 +60,14 @@ export default function TeacherHubPage() {
       badge: null,
       color: 'border-purple-100 hover:border-purple-300',
     },
+    {
+      href: '/dashboard',
+      icon: '📊',
+      label: 'ผลสอบวัดระดับ',
+      desc: 'ดูผลและวิเคราะห์ทักษะรายคน',
+      badge: null,
+      color: 'border-teal-100 hover:border-teal-300',
+    },
   ];
 
   return (

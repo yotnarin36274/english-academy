@@ -164,7 +164,8 @@ export default function DashboardPage() {
       {/* Top bar */}
       <header className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
-          <h1 className="text-xl font-bold text-gray-900 mr-auto">Dashboard</h1>
+          <a href="/teacher" className="text-gray-400 hover:text-gray-600 text-sm mr-1">←</a>
+          <h1 className="text-xl font-bold text-gray-900 mr-auto">📊 ผลสอบวัดระดับ</h1>
 
           {/* Date picker */}
           <input
