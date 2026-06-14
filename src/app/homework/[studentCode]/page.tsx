@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
+import { RadarChart } from '@/components/RadarChart';
+import type { RadarAxis } from '@/components/RadarChart';
 import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
 
 interface AssignmentWithStatus extends Assignment {
@@ -21,6 +23,8 @@ export default function StudentHomeworkPage() {
   const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; duration_hours: number; status: string}>>([]);
   const [makeups, setMakeups] = useState<Array<{id: string; topic: string; duration_hours: number}>>([]);
   const [attendedHours, setAttendedHours] = useState(0);
+  const [radarAxes, setRadarAxes] = useState<RadarAxis[]>([]);
+  const [radarSessions, setRadarSessions] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -40,7 +44,7 @@ export default function StudentHomeworkPage() {
 
     if (!stu) { router.replace('/homework'); return; }
     setStudent(stu);
-    await Promise.all([fetchAssignments(stu), fetchSessionData(stu)]);
+    await Promise.all([fetchAssignments(stu), fetchSessionData(stu), fetchRadar(stu.id)]);
     setLoading(false);
 
     // Subscribe realtime
@@ -51,6 +55,8 @@ export default function StudentHomeworkPage() {
           () => fetchAssignments(stu))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions', filter: `student_id=eq.${stu.id}` },
           () => fetchAssignments(stu))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'in_class_assessments', filter: `student_id=eq.${stu.id}` },
+          () => fetchRadar(stu.id))
         .subscribe();
     }
   }
@@ -93,6 +99,22 @@ export default function StudentHomeworkPage() {
 
     setAssignments(merged);
     setRefreshing(false);
+  }
+
+  async function fetchRadar(studentId: string) {
+    const { data: assessments } = await db().from('in_class_assessments').select('skill_ratings').eq('student_id', studentId);
+    if (!assessments?.length) { setRadarAxes([]); setRadarSessions(0); return; }
+    const totals: Record<string, { sum: number; count: number }> = {};
+    for (const a of assessments) {
+      for (const [skill, val] of Object.entries((a.skill_ratings ?? {}) as Record<string, number>)) {
+        if (!val) continue;
+        if (!totals[skill]) totals[skill] = { sum: 0, count: 0 };
+        totals[skill].sum += val; totals[skill].count += 1;
+      }
+    }
+    setRadarAxes(Object.entries(totals).filter(([, t]) => t.count > 0)
+      .map(([label, t]) => ({ label, value: Math.round((t.sum / t.count / 5) * 100) })));
+    setRadarSessions(assessments.length);
   }
 
   async function fetchSessionData(stu: Student) {
@@ -207,6 +229,15 @@ export default function StudentHomeworkPage() {
                 </div>
               </div>
             )}
+          </section>
+        )}
+
+        {/* Radar chart */}
+        {radarAxes.length >= 3 && (
+          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+            <h2 className="text-sm font-semibold text-gray-700 mb-1">🕸️ ทักษะของฉัน</h2>
+            <RadarChart axes={radarAxes} sessions={radarSessions}
+              emptyLabel="ยังไม่มีข้อมูลทักษะ" />
           </section>
         )}
 

@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
+import { RadarChart } from '@/components/RadarChart';
+import type { RadarAxis } from '@/components/RadarChart';
 import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
 
 const GRADES = ['ป.4', 'ป.5', 'ป.6', 'ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
@@ -25,95 +27,6 @@ interface ProgressItem {
   feedback: FeedbackRow | null;
 }
 
-interface RadarAxis { label: string; value: number; }
-
-function RadarChart({ axes, sessions }: { axes: RadarAxis[]; sessions: number }) {
-  if (axes.length < 3) {
-    return (
-      <div className="text-center py-8 text-gray-400 text-sm space-y-1">
-        <div className="text-3xl">🕸️</div>
-        <p>ต้องมีข้อมูลประเมินทักษะอย่างน้อย 3 ด้าน</p>
-        <p className="text-xs">กรุณาบันทึกการประเมินระหว่างคาบก่อนครับ</p>
-      </div>
-    );
-  }
-
-  const SIZE = 220;
-  const cx = SIZE / 2, cy = SIZE / 2;
-  const R = 80;
-  const n = axes.length;
-  const LEVELS = [0.25, 0.5, 0.75, 1.0];
-
-  function pt(axisIdx: number, radius: number) {
-    const angle = (axisIdx / n) * 2 * Math.PI - Math.PI / 2;
-    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
-  }
-
-  function polygon(radius: number) {
-    return Array.from({ length: n }, (_, i) => pt(i, radius))
-      .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-  }
-
-  const dataPolygon = axes.map((a, i) => pt(i, R * (a.value / 100)))
-    .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
-
-  return (
-    <div>
-      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full max-w-xs mx-auto block" style={{ height: SIZE }}>
-        {/* Grid polygons */}
-        {LEVELS.map(lv => (
-          <polygon key={lv} points={polygon(R * lv)}
-            fill="none" stroke="#e5e7eb" strokeWidth="1" />
-        ))}
-        {/* Percentage labels on 100% ring */}
-        {LEVELS.map(lv => {
-          const p = pt(0, R * lv);
-          return (
-            <text key={lv} x={p.x + 3} y={p.y} fontSize="7" fill="#d1d5db">
-              {lv * 100}%
-            </text>
-          );
-        })}
-        {/* Axis lines */}
-        {axes.map((_, i) => {
-          const outer = pt(i, R);
-          return <line key={i} x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke="#e5e7eb" strokeWidth="1" />;
-        })}
-        {/* Data fill */}
-        <polygon points={dataPolygon}
-          fill="rgba(29,158,117,0.15)" stroke="#1D9E75" strokeWidth="2" strokeLinejoin="round" />
-        {/* Data dots + value labels */}
-        {axes.map((a, i) => {
-          const p = pt(i, R * (a.value / 100));
-          return (
-            <g key={i}>
-              <circle cx={p.x} cy={p.y} r="4" fill="#1D9E75" />
-              {a.value > 0 && (
-                <text x={p.x} y={p.y - 6} textAnchor="middle" fontSize="8" fill="#1D9E75" fontWeight="bold">
-                  {a.value}%
-                </text>
-              )}
-            </g>
-          );
-        })}
-        {/* Axis labels */}
-        {axes.map((a, i) => {
-          const outer = pt(i, R + 18);
-          return (
-            <text key={i} x={outer.x} y={outer.y + 4}
-              textAnchor="middle" fontSize="10" fill="#374151" fontWeight="500">
-              {a.label}
-            </text>
-          );
-        })}
-      </svg>
-      {sessions > 0 && (
-        <p className="text-xs text-gray-400 text-center mt-1">เฉลี่ยจาก {sessions} session</p>
-      )}
-    </div>
-  );
-}
-
 export default function StudentProfilePage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -122,9 +35,13 @@ export default function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [reportCopied, setReportCopied] = useState(false);
   const [radarAxes, setRadarAxes] = useState<RadarAxis[]>([]);
   const [radarSessions, setRadarSessions] = useState(0);
+  const [attendedHours, setAttendedHours] = useState(0);
+  const [sessionsList, setSessionsList] = useState<Array<{ session_date: string; topic: string; duration_hours: number; status: string }>>([]);
+  const [makeupsList, setMakeupsList] = useState<Array<{ topic: string; duration_hours: number }>>([]);
   const [editForm, setEditForm] = useState({
     nickname: '', full_name: '', grade: 'ป.4', student_code: '',
     level: '', total_course_hours: '', notes: '',
@@ -142,7 +59,7 @@ export default function StudentProfilePage() {
     const { data: stu } = await db().from('students').select('*').eq('id', id).single();
     if (!stu) { router.replace('/teacher/students'); return; }
     setStudent(stu);
-    await Promise.all([fetchHomework(stu), fetchRadar(stu.id)]);
+    await Promise.all([fetchHomework(stu), fetchRadar(stu.id), fetchSessionData(stu.id)]);
     setLoading(false);
 
     if (!channelRef.current) {
@@ -154,6 +71,8 @@ export default function StudentProfilePage() {
           () => fetchHomework(stu))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'in_class_assessments', filter: `student_id=eq.${id}` },
           () => fetchRadar(id))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance', filter: `student_id=eq.${id}` },
+          () => fetchSessionData(id))
         .subscribe();
     }
   }
@@ -164,63 +83,58 @@ export default function StudentProfilePage() {
       const noTarget = a.target_groups.length === 0 && (a.target_student_ids ?? []).length === 0;
       return noTarget || a.target_groups.includes(stu.group_key) || (a.target_student_ids ?? []).includes(stu.id);
     });
-
     const { data: subsData } = await db().from('homework_submissions').select('*').eq('student_id', stu.id);
     const { data: fbData } = await db().from('feedback').select('*').eq('student_id', stu.id);
-
     const subMap = new Map<string, HomeworkSubmission>();
     (subsData ?? []).forEach((s: HomeworkSubmission) => subMap.set(s.assignment_id, s));
-
     const fbBySubId = new Map<string, FeedbackRow>();
     (fbData ?? []).forEach((f: FeedbackRow) => fbBySubId.set(f.submission_id, f));
-
-    const merged: ProgressItem[] = relevant.map((a: Assignment) => {
+    setItems(relevant.map((a: Assignment) => {
       const sub = subMap.get(a.id) ?? null;
-      const fb = sub ? fbBySubId.get(sub.id) ?? null : null;
-      return { assignment: a, submission: sub, feedback: fb };
-    });
-    setItems(merged);
+      return { assignment: a, submission: sub, feedback: sub ? fbBySubId.get(sub.id) ?? null : null };
+    }));
   }
 
   async function fetchRadar(studentId: string) {
-    const { data: assessments } = await db()
-      .from('in_class_assessments')
-      .select('skill_ratings')
-      .eq('student_id', studentId);
-
+    const { data: assessments } = await db().from('in_class_assessments').select('skill_ratings').eq('student_id', studentId);
     if (!assessments?.length) { setRadarAxes([]); setRadarSessions(0); return; }
-
     const totals: Record<string, { sum: number; count: number }> = {};
     for (const a of assessments) {
-      const ratings = (a.skill_ratings ?? {}) as Record<string, number>;
-      for (const [skill, val] of Object.entries(ratings)) {
+      for (const [skill, val] of Object.entries((a.skill_ratings ?? {}) as Record<string, number>)) {
         if (!val) continue;
         if (!totals[skill]) totals[skill] = { sum: 0, count: 0 };
-        totals[skill].sum += val;
-        totals[skill].count += 1;
+        totals[skill].sum += val; totals[skill].count += 1;
       }
     }
-
-    const axes: RadarAxis[] = Object.entries(totals)
-      .filter(([, t]) => t.count > 0)
-      .map(([label, t]) => ({
-        label,
-        value: Math.round((t.sum / t.count / 5) * 100),
-      }));
-
-    setRadarAxes(axes);
+    setRadarAxes(Object.entries(totals).filter(([, t]) => t.count > 0)
+      .map(([label, t]) => ({ label, value: Math.round((t.sum / t.count / 5) * 100) })));
     setRadarSessions(assessments.length);
+  }
+
+  async function fetchSessionData(studentId: string) {
+    const { data: attData } = await db().from('attendance').select('status, session_id').eq('student_id', studentId);
+    if (!attData?.length) { setAttendedHours(0); setSessionsList([]); setMakeupsList([]); return; }
+    const sessionIds = (attData as { status: string; session_id: string }[]).map(a => a.session_id);
+    const { data: sessionData } = await db().from('class_sessions').select('id, session_date, topic, duration_hours').in('id', sessionIds).order('session_date', { ascending: false });
+    const sMap = new Map((sessionData ?? []).map((s: { id: string; session_date: string; topic: string; duration_hours: number }) => [s.id, s]));
+    const merged = (attData as { status: string; session_id: string }[])
+      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, status: a.status } : null; })
+      .filter(Boolean) as { session_date: string; topic: string; duration_hours: number; status: string }[];
+    merged.sort((a, b) => b.session_date.localeCompare(a.session_date));
+    setSessionsList(merged);
+    setAttendedHours((attData as { status: string; session_id: string }[])
+      .filter(a => a.status === 'present')
+      .reduce((sum, a) => sum + (sMap.get(a.session_id)?.duration_hours ?? 0), 0));
+    const { data: mkData } = await db().from('makeup_classes').select('topic, duration_hours').eq('student_id', studentId).eq('completed', false);
+    setMakeupsList((mkData ?? []) as { topic: string; duration_hours: number }[]);
   }
 
   function startEdit() {
     if (!student) return;
     setEditForm({
-      nickname: student.nickname,
-      full_name: student.full_name ?? '',
-      grade: student.grade,
-      student_code: student.student_code,
-      level: student.level ?? '',
-      total_course_hours: student.total_course_hours?.toString() ?? '',
+      nickname: student.nickname, full_name: student.full_name ?? '',
+      grade: student.grade, student_code: student.student_code,
+      level: student.level ?? '', total_course_hours: student.total_course_hours?.toString() ?? '',
       notes: student.notes ?? '',
     });
     setEditing(true);
@@ -230,27 +144,67 @@ export default function StudentProfilePage() {
     if (!student || !editForm.nickname.trim() || !editForm.student_code.trim()) return;
     setSaving(true);
     const updates = {
-      nickname: editForm.nickname.trim(),
-      full_name: editForm.full_name.trim() || null,
-      grade: editForm.grade,
-      group_key: GRADE_GROUP[editForm.grade] ?? student.group_key,
-      student_code: editForm.student_code.trim().toUpperCase(),
-      level: editForm.level || null,
+      nickname: editForm.nickname.trim(), full_name: editForm.full_name.trim() || null,
+      grade: editForm.grade, group_key: GRADE_GROUP[editForm.grade] ?? student.group_key,
+      student_code: editForm.student_code.trim().toUpperCase(), level: editForm.level || null,
       total_course_hours: editForm.total_course_hours ? parseFloat(editForm.total_course_hours) : null,
       notes: editForm.notes.trim() || null,
     };
     await db().from('students').update(updates).eq('id', student.id);
     setStudent(prev => prev ? { ...prev, ...updates } : null);
-    setSaving(false);
-    setEditing(false);
+    setSaving(false); setEditing(false);
   }
 
-  function copyParentLink() {
-    if (!student) return;
-    const code = (student as Student & { level?: string }).student_code;
-    navigator.clipboard.writeText(`${window.location.origin}/parent/${code}`);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  function buildReportMessage() {
+    if (!student) return '';
+    const lines: string[] = [
+      '📊 รายงานผลการเรียนรายบุคคล',
+      `น้อง${student.nickname}${student.full_name ? ` (${student.full_name})` : ''} · ${student.grade}`,
+      `รหัส: ${student.student_code}${student.level ? ` · ${student.level}` : ''} | ENG SPARK Academy`,
+      '',
+    ];
+    if (student.session_type === 'fixed' && student.total_course_hours) {
+      const rem = Math.max(0, student.total_course_hours - attendedHours);
+      lines.push('⏱ ชั่วโมงเรียน');
+      lines.push(`เรียนแล้ว ${attendedHours} ชม. / ทั้งหมด ${student.total_course_hours} ชม.`);
+      lines.push(`คงเหลือ ${rem} ชม.`);
+      lines.push('');
+    } else if (attendedHours > 0) {
+      lines.push(`⏱ รวมเรียน ${attendedHours} ชม.`); lines.push('');
+    }
+    const reviewed = items.filter(i => i.feedback?.score != null);
+    const avg = reviewed.length
+      ? Math.round(reviewed.reduce((s, i) => s + (i.feedback!.score! / i.feedback!.max_score) * 100, 0) / reviewed.length) : null;
+    lines.push('📝 การบ้าน');
+    lines.push(`ส่งแล้ว ${items.filter(i => i.submission).length}/${items.length} ชิ้นงาน`);
+    if (avg != null) lines.push(`คะแนนเฉลี่ย ${avg}%`);
+    if (radarAxes.length >= 3) {
+      lines.push(''); lines.push('🕸️ ทักษะภาษาอังกฤษ');
+      radarAxes.forEach(a => lines.push(`  ${a.label}: ${a.value}%`));
+      if (radarSessions > 0) lines.push(`  (เฉลี่ยจาก ${radarSessions} session)`);
+    }
+    if (makeupsList.length > 0) {
+      lines.push(''); lines.push(`🔁 Make-up คงค้าง ${makeupsList.length} รายการ`);
+      makeupsList.forEach(m => lines.push(`  • ${m.topic} (${m.duration_hours} ชม.)`));
+    }
+    if (sessionsList.length > 0) {
+      lines.push(''); lines.push('📋 Session ล่าสุด');
+      sessionsList.slice(0, 4).forEach(s => {
+        const icon = s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒';
+        const date = new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
+        lines.push(`${icon} ${date} · ${s.topic} (${s.duration_hours} ชม.)`);
+      });
+    }
+    lines.push('');
+    lines.push(`อัปเดต: ${new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' })}`);
+    lines.push('ENG SPARK Academy ⚡');
+    return lines.join('\n');
+  }
+
+  async function copyReport() {
+    await navigator.clipboard.writeText(buildReportMessage());
+    setReportCopied(true);
+    setTimeout(() => setReportCopied(false), 2500);
   }
 
   const reviewed = items.filter(i => i.feedback?.score != null);
@@ -294,21 +248,18 @@ export default function StudentProfilePage() {
                 </div>
                 <button onClick={startEdit} className="text-sm text-blue-600 hover:underline shrink-0">แก้ไข</button>
               </div>
-
-              {/* Parent link */}
               <div className="mt-4 pt-4 border-t flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium text-gray-700">ลิงก์ผู้ปกครอง</p>
-                  <p className="text-xs text-gray-400">ผู้ปกครองเข้าด้วยรหัส <span className="font-mono font-semibold">{student?.student_code}</span></p>
+                  <p className="text-xs text-gray-400">เข้าด้วยรหัส <span className="font-mono font-semibold">{student?.student_code}</span></p>
                 </div>
-                <button onClick={copyParentLink}
-                  className={`shrink-0 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${copied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>
-                  {copied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกลิงก์'}
+                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/parent/${student?.student_code}`); setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }}
+                  className={`shrink-0 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${linkCopied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>
+                  {linkCopied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกลิงก์'}
                 </button>
               </div>
             </>
           ) : (
-            /* Edit form */
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-gray-800">แก้ไขข้อมูลนักเรียน</h3>
@@ -384,7 +335,7 @@ export default function StudentProfilePage() {
             <p className={`text-2xl font-bold ${avgPct == null ? 'text-gray-400' : avgPct >= 80 ? 'text-green-600' : avgPct >= 60 ? 'text-amber-600' : 'text-red-500'}`}>
               {avgPct != null ? `${avgPct}%` : '—'}
             </p>
-            <p className="text-xs text-gray-500">เฉลี่ย</p>
+            <p className="text-xs text-gray-500">เฉลี่ยการบ้าน</p>
           </div>
         </div>
 
@@ -392,6 +343,26 @@ export default function StudentProfilePage() {
         <div className="bg-white rounded-2xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-gray-600 mb-3">🕸️ ทักษะภาษาอังกฤษ</h3>
           <RadarChart axes={radarAxes} sessions={radarSessions} />
+        </div>
+
+        {/* Individual report */}
+        <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-700">📊 รายงานผลรายบุคคล</h3>
+            <p className="text-xs text-gray-400 mt-0.5">สรุปผลครบทุกด้าน พร้อมส่ง LINE ให้ผู้ปกครอง</p>
+          </div>
+          {attendedHours > 0 && (
+            <div className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 space-y-0.5">
+              {student?.total_course_hours
+                ? <p>⏱ เรียนแล้ว {attendedHours} / {student.total_course_hours} ชม. · เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</p>
+                : <p>⏱ รวมเรียน {attendedHours} ชม.</p>}
+              {makeupsList.length > 0 && <p>🔁 Make-up คงค้าง {makeupsList.length} รายการ</p>}
+            </div>
+          )}
+          <button onClick={copyReport}
+            className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${reportCopied ? 'bg-green-500 text-white' : 'bg-[#06C755] text-white hover:bg-green-600'}`}>
+            {reportCopied ? '✅ คัดลอกแล้ว!' : '📋 คัดลอกรายงานเพื่อส่ง LINE'}
+          </button>
         </div>
 
         {/* Submission history */}
