@@ -25,33 +25,91 @@ interface ProgressItem {
   feedback: FeedbackRow | null;
 }
 
-function ProgressChart({ items }: { items: ProgressItem[] }) {
-  const scored = items.filter(i => i.feedback?.score != null).reverse().slice(-10);
-  if (scored.length < 2) return (
-    <div className="text-center py-8 text-gray-400 text-sm">ต้องมีงานที่ให้คะแนนอย่างน้อย 2 ชิ้น</div>
-  );
-  const W = 300, H = 100, pad = 12;
-  const pts = scored.map((item, idx) => {
-    const x = pad + (idx / (scored.length - 1)) * (W - pad * 2);
-    const pct = item.feedback!.score! / item.feedback!.max_score;
-    const y = H - pad - pct * (H - pad * 2);
-    return { x, y, pct: Math.round(pct * 100) };
-  });
-  const polyline = pts.map(p => `${p.x},${p.y}`).join(' ');
+interface RadarAxis { label: string; value: number; }
+
+function RadarChart({ axes, sessions }: { axes: RadarAxis[]; sessions: number }) {
+  if (axes.length < 3) {
+    return (
+      <div className="text-center py-8 text-gray-400 text-sm space-y-1">
+        <div className="text-3xl">🕸️</div>
+        <p>ต้องมีข้อมูลประเมินทักษะอย่างน้อย 3 ด้าน</p>
+        <p className="text-xs">กรุณาบันทึกการประเมินระหว่างคาบก่อนครับ</p>
+      </div>
+    );
+  }
+
+  const SIZE = 220;
+  const cx = SIZE / 2, cy = SIZE / 2;
+  const R = 80;
+  const n = axes.length;
+  const LEVELS = [0.25, 0.5, 0.75, 1.0];
+
+  function pt(axisIdx: number, radius: number) {
+    const angle = (axisIdx / n) * 2 * Math.PI - Math.PI / 2;
+    return { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) };
+  }
+
+  function polygon(radius: number) {
+    return Array.from({ length: n }, (_, i) => pt(i, radius))
+      .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  }
+
+  const dataPolygon = axes.map((a, i) => pt(i, R * (a.value / 100)))
+    .map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+
   return (
     <div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: 100 }}>
-        <line x1={pad} y1={H - pad - 0.8 * (H - pad * 2)} x2={W - pad} y2={H - pad - 0.8 * (H - pad * 2)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
-        <line x1={pad} y1={H - pad - 0.6 * (H - pad * 2)} x2={W - pad} y2={H - pad - 0.6 * (H - pad * 2)} stroke="#e5e7eb" strokeWidth="1" strokeDasharray="4" />
-        <polyline points={polyline} fill="none" stroke="#1D9E75" strokeWidth="2.5" strokeLinejoin="round" />
-        {pts.map((p, i) => (
-          <g key={i}>
-            <circle cx={p.x} cy={p.y} r="5" fill="#1D9E75" />
-            <text x={p.x} y={p.y - 8} textAnchor="middle" fontSize="9" fill="#6b7280">{p.pct}%</text>
-          </g>
+      <svg viewBox={`0 0 ${SIZE} ${SIZE}`} className="w-full max-w-xs mx-auto block" style={{ height: SIZE }}>
+        {/* Grid polygons */}
+        {LEVELS.map(lv => (
+          <polygon key={lv} points={polygon(R * lv)}
+            fill="none" stroke="#e5e7eb" strokeWidth="1" />
         ))}
+        {/* Percentage labels on 100% ring */}
+        {LEVELS.map(lv => {
+          const p = pt(0, R * lv);
+          return (
+            <text key={lv} x={p.x + 3} y={p.y} fontSize="7" fill="#d1d5db">
+              {lv * 100}%
+            </text>
+          );
+        })}
+        {/* Axis lines */}
+        {axes.map((_, i) => {
+          const outer = pt(i, R);
+          return <line key={i} x1={cx} y1={cy} x2={outer.x} y2={outer.y} stroke="#e5e7eb" strokeWidth="1" />;
+        })}
+        {/* Data fill */}
+        <polygon points={dataPolygon}
+          fill="rgba(29,158,117,0.15)" stroke="#1D9E75" strokeWidth="2" strokeLinejoin="round" />
+        {/* Data dots + value labels */}
+        {axes.map((a, i) => {
+          const p = pt(i, R * (a.value / 100));
+          return (
+            <g key={i}>
+              <circle cx={p.x} cy={p.y} r="4" fill="#1D9E75" />
+              {a.value > 0 && (
+                <text x={p.x} y={p.y - 6} textAnchor="middle" fontSize="8" fill="#1D9E75" fontWeight="bold">
+                  {a.value}%
+                </text>
+              )}
+            </g>
+          );
+        })}
+        {/* Axis labels */}
+        {axes.map((a, i) => {
+          const outer = pt(i, R + 18);
+          return (
+            <text key={i} x={outer.x} y={outer.y + 4}
+              textAnchor="middle" fontSize="10" fill="#374151" fontWeight="500">
+              {a.label}
+            </text>
+          );
+        })}
       </svg>
-      <div className="text-xs text-gray-400 text-center mt-1">ผลงาน {scored.length} ชิ้นล่าสุด</div>
+      {sessions > 0 && (
+        <p className="text-xs text-gray-400 text-center mt-1">เฉลี่ยจาก {sessions} session</p>
+      )}
     </div>
   );
 }
@@ -65,6 +123,8 @@ export default function StudentProfilePage() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [radarAxes, setRadarAxes] = useState<RadarAxis[]>([]);
+  const [radarSessions, setRadarSessions] = useState(0);
   const [editForm, setEditForm] = useState({
     nickname: '', full_name: '', grade: 'ป.4', student_code: '',
     level: '', total_course_hours: '', notes: '',
@@ -82,7 +142,7 @@ export default function StudentProfilePage() {
     const { data: stu } = await db().from('students').select('*').eq('id', id).single();
     if (!stu) { router.replace('/teacher/students'); return; }
     setStudent(stu);
-    await fetchHomework(stu);
+    await Promise.all([fetchHomework(stu), fetchRadar(stu.id)]);
     setLoading(false);
 
     if (!channelRef.current) {
@@ -92,6 +152,8 @@ export default function StudentProfilePage() {
           () => fetchHomework(stu))
         .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions', filter: `student_id=eq.${id}` },
           () => fetchHomework(stu))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'in_class_assessments', filter: `student_id=eq.${id}` },
+          () => fetchRadar(id))
         .subscribe();
     }
   }
@@ -118,6 +180,36 @@ export default function StudentProfilePage() {
       return { assignment: a, submission: sub, feedback: fb };
     });
     setItems(merged);
+  }
+
+  async function fetchRadar(studentId: string) {
+    const { data: assessments } = await db()
+      .from('in_class_assessments')
+      .select('skill_ratings')
+      .eq('student_id', studentId);
+
+    if (!assessments?.length) { setRadarAxes([]); setRadarSessions(0); return; }
+
+    const totals: Record<string, { sum: number; count: number }> = {};
+    for (const a of assessments) {
+      const ratings = (a.skill_ratings ?? {}) as Record<string, number>;
+      for (const [skill, val] of Object.entries(ratings)) {
+        if (!val) continue;
+        if (!totals[skill]) totals[skill] = { sum: 0, count: 0 };
+        totals[skill].sum += val;
+        totals[skill].count += 1;
+      }
+    }
+
+    const axes: RadarAxis[] = Object.entries(totals)
+      .filter(([, t]) => t.count > 0)
+      .map(([label, t]) => ({
+        label,
+        value: Math.round((t.sum / t.count / 5) * 100),
+      }));
+
+    setRadarAxes(axes);
+    setRadarSessions(assessments.length);
   }
 
   function startEdit() {
@@ -296,10 +388,10 @@ export default function StudentProfilePage() {
           </div>
         </div>
 
-        {/* Chart */}
+        {/* Radar chart */}
         <div className="bg-white rounded-2xl shadow-sm p-4">
-          <h3 className="text-sm font-semibold text-gray-600 mb-3">📈 กราฟพัฒนาการ</h3>
-          <ProgressChart items={items} />
+          <h3 className="text-sm font-semibold text-gray-600 mb-3">🕸️ ทักษะภาษาอังกฤษ</h3>
+          <RadarChart axes={radarAxes} sessions={radarSessions} />
         </div>
 
         {/* Submission history */}
