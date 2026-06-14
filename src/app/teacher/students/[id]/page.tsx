@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
@@ -69,30 +69,56 @@ export default function StudentProfilePage() {
     nickname: '', full_name: '', grade: 'ป.4', student_code: '',
     level: '', total_course_hours: '', notes: '',
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
-    async function load() {
-      const { data: stu } = await db().from('students').select('*').eq('id', id).single();
-      if (!stu) { router.replace('/teacher/students'); return; }
-      setStudent(stu);
-
-      const { data: asgList } = await db().from('assignments').select('*').eq('is_active', true).order('created_at', { ascending: false });
-      const relevant = (asgList ?? []).filter(
-        (a: Assignment) => a.target_groups.length === 0 || a.target_groups.includes(stu.group_key)
-      );
-      const { data: subs } = await db().from('homework_submissions').select('*, feedback(*)').eq('student_id', id);
-      const subMap = new Map<string, HomeworkSubmission & { feedback: FeedbackRow[] }>();
-      (subs ?? []).forEach((s: HomeworkSubmission & { feedback: FeedbackRow[] }) => subMap.set(s.assignment_id, s));
-      const merged: ProgressItem[] = relevant.map((a: Assignment) => {
-        const sub = subMap.get(a.id) ?? null;
-        return { assignment: a, submission: sub, feedback: sub?.feedback?.[0] ?? null };
-      });
-      setItems(merged);
-      setLoading(false);
-    }
-    load();
+    loadAll();
+    return () => { channelRef.current?.unsubscribe(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
+
+  async function loadAll() {
+    const { data: stu } = await db().from('students').select('*').eq('id', id).single();
+    if (!stu) { router.replace('/teacher/students'); return; }
+    setStudent(stu);
+    await fetchHomework(stu);
+    setLoading(false);
+
+    if (!channelRef.current) {
+      channelRef.current = db()
+        .channel(`teacher-stu-${id}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'feedback', filter: `student_id=eq.${id}` },
+          () => fetchHomework(stu))
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'homework_submissions', filter: `student_id=eq.${id}` },
+          () => fetchHomework(stu))
+        .subscribe();
+    }
+  }
+
+  async function fetchHomework(stu: Student) {
+    const { data: asgList } = await db().from('assignments').select('*').eq('is_active', true).order('created_at', { ascending: false });
+    const relevant = (asgList ?? []).filter((a: Assignment) => {
+      const noTarget = a.target_groups.length === 0 && (a.target_student_ids ?? []).length === 0;
+      return noTarget || a.target_groups.includes(stu.group_key) || (a.target_student_ids ?? []).includes(stu.id);
+    });
+
+    const { data: subsData } = await db().from('homework_submissions').select('*').eq('student_id', stu.id);
+    const { data: fbData } = await db().from('feedback').select('*').eq('student_id', stu.id);
+
+    const subMap = new Map<string, HomeworkSubmission>();
+    (subsData ?? []).forEach((s: HomeworkSubmission) => subMap.set(s.assignment_id, s));
+
+    const fbBySubId = new Map<string, FeedbackRow>();
+    (fbData ?? []).forEach((f: FeedbackRow) => fbBySubId.set(f.submission_id, f));
+
+    const merged: ProgressItem[] = relevant.map((a: Assignment) => {
+      const sub = subMap.get(a.id) ?? null;
+      const fb = sub ? fbBySubId.get(sub.id) ?? null : null;
+      return { assignment: a, submission: sub, feedback: fb };
+    });
+    setItems(merged);
+  }
 
   function startEdit() {
     if (!student) return;
