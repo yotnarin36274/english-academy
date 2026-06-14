@@ -12,6 +12,7 @@ export interface Student {
   is_active: boolean;
   total_course_hours: number | null;
   session_type: 'fixed' | 'hourly';
+  level: string | null;
 }
 
 export interface ClassSession {

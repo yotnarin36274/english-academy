@@ -12,6 +12,13 @@ const GRADE_GROUP: Record<string, string> = {
   'ม.1': 'm13', 'ม.2': 'm13', 'ม.3': 'm13',
   'ม.4': 'm46', 'ม.5': 'm46', 'ม.6': 'm46',
 };
+const LEVELS = ['', 'Starter', 'Intermediate', 'Upper-Intermediate', 'Advanced'];
+const LEVEL_COLOR: Record<string, string> = {
+  Starter: 'bg-sky-100 text-sky-700',
+  Intermediate: 'bg-green-100 text-green-700',
+  'Upper-Intermediate': 'bg-amber-100 text-amber-700',
+  Advanced: 'bg-purple-100 text-purple-700',
+};
 
 export default function TeacherStudentsPage() {
   const router = useRouter();
@@ -20,9 +27,8 @@ export default function TeacherStudentsPage() {
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    student_code: '', nickname: '', full_name: '', grade: 'ป.4',
-    parent_line_notify_token: '', notes: '',
-    total_course_hours: '', session_type: 'fixed' as 'fixed' | 'hourly',
+    student_code: '', nickname: '', full_name: '', grade: 'ป.4', level: '',
+    notes: '', total_course_hours: '', session_type: 'fixed' as 'fixed' | 'hourly',
   });
 
   useEffect(() => { load(); }, []);
@@ -44,14 +50,14 @@ export default function TeacherStudentsPage() {
       full_name: form.full_name.trim() || null,
       grade: form.grade,
       group_key,
-      parent_line_notify_token: form.parent_line_notify_token.trim() || null,
+      level: form.level || null,
       notes: form.notes.trim() || null,
       is_active: true,
       total_course_hours: form.total_course_hours ? parseFloat(form.total_course_hours) : null,
       session_type: form.session_type,
     });
     setSaving(false);
-    setForm({ student_code: '', nickname: '', full_name: '', grade: 'ป.4', parent_line_notify_token: '', notes: '', total_course_hours: '', session_type: 'fixed' });
+    setForm({ student_code: '', nickname: '', full_name: '', grade: 'ป.4', level: '', notes: '', total_course_hours: '', session_type: 'fixed' });
     setShowForm(false);
     load();
   }
@@ -84,9 +90,9 @@ export default function TeacherStudentsPage() {
             <h2 className="font-semibold text-gray-800">เพิ่มนักเรียนใหม่</h2>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-xs font-medium text-gray-600">รหัสนักเรียน *</label>
+                <label className="text-xs font-medium text-gray-600">รหัสนักเรียน (ใช้ล็อกอิน) *</label>
                 <input value={form.student_code} onChange={e => setField('student_code', e.target.value)}
-                  placeholder="ENG001"
+                  placeholder="MICKEY001"
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
               <div>
@@ -113,28 +119,26 @@ export default function TeacherStudentsPage() {
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
+                <label className="text-xs font-medium text-gray-600">ระดับภาษาอังกฤษ</label>
+                <select value={form.level} onChange={e => setField('level', e.target.value)}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                  {LEVELS.map(l => <option key={l} value={l}>{l || '— ไม่ระบุ —'}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="text-xs font-medium text-gray-600">ชม.ต่อ Course</label>
                 <input value={form.total_course_hours} onChange={e => setField('total_course_hours', e.target.value)}
                   type="number" min="0" step="0.5" placeholder="เช่น 20"
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-600">ประเภท Session</label>
-                <select value={form.session_type} onChange={e => setField('session_type', e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
-                  <option value="fixed">แบบ Package (กำหนดชม.)</option>
-                  <option value="hourly">รายชั่วโมง</option>
-                </select>
-              </div>
             </div>
             <div>
-              <label className="text-xs font-medium text-gray-600">LINE Notify Token ผู้ปกครอง</label>
-              <input value={form.parent_line_notify_token} onChange={e => setField('parent_line_notify_token', e.target.value)}
-                placeholder="Token จาก notify.line.me (ไม่บังคับ)"
-                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
-              <p className="text-xs text-gray-400 mt-1">
-                ผู้ปกครองสร้าง Token ได้ที่ notify.line.me → My page → Generate token
-              </p>
+              <label className="text-xs font-medium text-gray-600">ประเภท Session</label>
+              <select value={form.session_type} onChange={e => setField('session_type', e.target.value)}
+                className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                <option value="fixed">แบบ Package (กำหนดชม.)</option>
+                <option value="hourly">รายชั่วโมง</option>
+              </select>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">โน้ต</label>
@@ -170,19 +174,19 @@ export default function TeacherStudentsPage() {
                   {stu.nickname[0]}
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-semibold text-gray-800">{stu.nickname}</p>
                     <span className="text-xs text-gray-500 font-mono">{stu.student_code}</span>
                     {!stu.is_active && <span className="text-xs text-red-400">(ไม่ active)</span>}
+                    {stu.level && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLOR[stu.level] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {stu.level}
+                      </span>
+                    )}
                   </div>
-                  <p className="text-sm text-gray-500">{stu.full_name ?? ''} · {stu.grade} · {GROUP_LABELS[stu.group_key]}</p>
+                  <p className="text-sm text-gray-500">{stu.full_name ? `${stu.full_name} · ` : ''}{stu.grade} · {GROUP_LABELS[stu.group_key]}</p>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  {stu.parent_line_notify_token && (
-                    <span className="text-xs text-green-600 font-medium">LINE ✅</span>
-                  )}
-                  <span className="text-gray-400 text-sm">→</span>
-                </div>
+                <span className="text-gray-400 text-sm shrink-0">→</span>
               </div>
             </button>
           ))}

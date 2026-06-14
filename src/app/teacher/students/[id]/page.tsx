@@ -5,6 +5,20 @@ import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
 
+const GRADES = ['ป.4', 'ป.5', 'ป.6', 'ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
+const GRADE_GROUP: Record<string, string> = {
+  'ป.4': 'p46', 'ป.5': 'p46', 'ป.6': 'p46',
+  'ม.1': 'm13', 'ม.2': 'm13', 'ม.3': 'm13',
+  'ม.4': 'm46', 'ม.5': 'm46', 'ม.6': 'm46',
+};
+const LEVELS = ['', 'Starter', 'Intermediate', 'Upper-Intermediate', 'Advanced'];
+const LEVEL_COLOR: Record<string, string> = {
+  Starter: 'bg-sky-100 text-sky-700',
+  Intermediate: 'bg-green-100 text-green-700',
+  'Upper-Intermediate': 'bg-amber-100 text-amber-700',
+  Advanced: 'bg-purple-100 text-purple-700',
+};
+
 interface ProgressItem {
   assignment: Assignment;
   submission: HomeworkSubmission | null;
@@ -21,7 +35,7 @@ function ProgressChart({ items }: { items: ProgressItem[] }) {
     const x = pad + (idx / (scored.length - 1)) * (W - pad * 2);
     const pct = item.feedback!.score! / item.feedback!.max_score;
     const y = H - pad - pct * (H - pad * 2);
-    return { x, y, pct: Math.round(pct * 100), title: item.assignment.title };
+    return { x, y, pct: Math.round(pct * 100) };
   });
   const polyline = pts.map(p => `${p.x},${p.y}`).join(' ');
   return (
@@ -49,27 +63,27 @@ export default function StudentProfilePage() {
   const [items, setItems] = useState<ProgressItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
-  const [lineToken, setLineToken] = useState('');
-  const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editForm, setEditForm] = useState({
+    nickname: '', full_name: '', grade: 'ป.4', student_code: '',
+    level: '', total_course_hours: '', notes: '',
+  });
 
   useEffect(() => {
     async function load() {
       const { data: stu } = await db().from('students').select('*').eq('id', id).single();
       if (!stu) { router.replace('/teacher/students'); return; }
       setStudent(stu);
-      setLineToken(stu.parent_line_notify_token ?? '');
-      setNotes(stu.notes ?? '');
 
       const { data: asgList } = await db().from('assignments').select('*').eq('is_active', true).order('created_at', { ascending: false });
-      const filtered = (asgList ?? []).filter(
+      const relevant = (asgList ?? []).filter(
         (a: Assignment) => a.target_groups.length === 0 || a.target_groups.includes(stu.group_key)
       );
       const { data: subs } = await db().from('homework_submissions').select('*, feedback(*)').eq('student_id', id);
       const subMap = new Map<string, HomeworkSubmission & { feedback: FeedbackRow[] }>();
       (subs ?? []).forEach((s: HomeworkSubmission & { feedback: FeedbackRow[] }) => subMap.set(s.assignment_id, s));
-      const merged: ProgressItem[] = filtered.map((a: Assignment) => {
+      const merged: ProgressItem[] = relevant.map((a: Assignment) => {
         const sub = subMap.get(a.id) ?? null;
         return { assignment: a, submission: sub, feedback: sub?.feedback?.[0] ?? null };
       });
@@ -80,22 +94,43 @@ export default function StudentProfilePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  async function saveEdits() {
+  function startEdit() {
     if (!student) return;
+    setEditForm({
+      nickname: student.nickname,
+      full_name: student.full_name ?? '',
+      grade: student.grade,
+      student_code: student.student_code,
+      level: student.level ?? '',
+      total_course_hours: student.total_course_hours?.toString() ?? '',
+      notes: student.notes ?? '',
+    });
+    setEditing(true);
+  }
+
+  async function saveEdits() {
+    if (!student || !editForm.nickname.trim() || !editForm.student_code.trim()) return;
     setSaving(true);
-    await db().from('students').update({
-      parent_line_notify_token: lineToken.trim() || null,
-      notes: notes.trim() || null,
-    }).eq('id', student.id);
+    const updates = {
+      nickname: editForm.nickname.trim(),
+      full_name: editForm.full_name.trim() || null,
+      grade: editForm.grade,
+      group_key: GRADE_GROUP[editForm.grade] ?? student.group_key,
+      student_code: editForm.student_code.trim().toUpperCase(),
+      level: editForm.level || null,
+      total_course_hours: editForm.total_course_hours ? parseFloat(editForm.total_course_hours) : null,
+      notes: editForm.notes.trim() || null,
+    };
+    await db().from('students').update(updates).eq('id', student.id);
+    setStudent(prev => prev ? { ...prev, ...updates } : null);
     setSaving(false);
     setEditing(false);
-    setStudent(prev => prev ? { ...prev, parent_line_notify_token: lineToken.trim() || null, notes: notes.trim() || null } : null);
   }
 
   function copyParentLink() {
     if (!student) return;
-    const url = `${window.location.origin}/parent/${student.parent_token}`;
-    navigator.clipboard.writeText(url);
+    const code = (student as Student & { level?: string }).student_code;
+    navigator.clipboard.writeText(`${window.location.origin}/parent/${code}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -119,56 +154,102 @@ export default function StudentProfilePage() {
       <div className="max-w-2xl mx-auto px-4 mt-4 space-y-4">
         {/* Profile card */}
         <div className="bg-white rounded-2xl shadow-sm p-5">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-700 font-bold text-xl flex items-center justify-center">
-              {student?.nickname[0]}
-            </div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-gray-800">{student?.nickname}</h2>
-              {student?.full_name && <p className="text-sm text-gray-500">{student.full_name}</p>}
-              <p className="text-sm text-gray-500">{student?.grade} · <span className="font-mono">{student?.student_code}</span></p>
-            </div>
-            <button onClick={() => setEditing(!editing)} className="text-sm text-blue-600 hover:underline">แก้ไข</button>
-          </div>
+          {!editing ? (
+            <>
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-blue-100 text-blue-700 font-bold text-xl flex items-center justify-center">
+                  {student?.nickname[0]}
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-bold text-gray-800">{student?.nickname}</h2>
+                    {student?.level && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLOR[student.level] ?? 'bg-gray-100 text-gray-600'}`}>
+                        {student.level}
+                      </span>
+                    )}
+                  </div>
+                  {student?.full_name && <p className="text-sm text-gray-500">{student.full_name}</p>}
+                  <p className="text-sm text-gray-500">
+                    {student?.grade} · <span className="font-mono text-gray-700">{student?.student_code}</span>
+                  </p>
+                </div>
+                <button onClick={startEdit} className="text-sm text-blue-600 hover:underline shrink-0">แก้ไข</button>
+              </div>
 
-          {/* Edit form */}
-          {editing && (
-            <div className="mt-4 space-y-3 pt-4 border-t">
-              <div>
-                <label className="text-xs font-medium text-gray-600">LINE Notify Token ผู้ปกครอง</label>
-                <input value={lineToken} onChange={e => setLineToken(e.target.value)}
-                  placeholder="Token จาก notify.line.me"
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              {/* Parent link */}
+              <div className="mt-4 pt-4 border-t flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">ลิงก์ผู้ปกครอง</p>
+                  <p className="text-xs text-gray-400">ผู้ปกครองเข้าด้วยรหัส <span className="font-mono font-semibold">{student?.student_code}</span></p>
+                </div>
+                <button onClick={copyParentLink}
+                  className={`shrink-0 text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${copied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>
+                  {copied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกลิงก์'}
+                </button>
+              </div>
+            </>
+          ) : (
+            /* Edit form */
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-gray-800">แก้ไขข้อมูลนักเรียน</h3>
+                <button onClick={() => setEditing(false)} className="text-sm text-gray-400 hover:text-gray-600">ยกเลิก</button>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600">ชื่อเล่น *</label>
+                  <input value={editForm.nickname} onChange={e => setEditForm(p => ({ ...p, nickname: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">ชื่อ-นามสกุล</label>
+                  <input value={editForm.full_name} onChange={e => setEditForm(p => ({ ...p, full_name: e.target.value }))}
+                    placeholder="ไม่บังคับ"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600">รหัสนักเรียน (ใช้ล็อกอิน) *</label>
+                  <input value={editForm.student_code} onChange={e => setEditForm(p => ({ ...p, student_code: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm uppercase font-mono focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                  <p className="text-xs text-amber-600 mt-0.5">⚠️ นักเรียนและผู้ปกครองต้องใช้รหัสใหม่</p>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">ชั้น</label>
+                  <select value={editForm.grade} onChange={e => setEditForm(p => ({ ...p, grade: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    {GRADES.map(g => <option key={g}>{g}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-gray-600">ระดับภาษาอังกฤษ</label>
+                  <select value={editForm.level} onChange={e => setEditForm(p => ({ ...p, level: e.target.value }))}
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                    {LEVELS.map(l => <option key={l} value={l}>{l || '— ไม่ระบุ —'}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600">ชม.ต่อ Course</label>
+                  <input value={editForm.total_course_hours} onChange={e => setEditForm(p => ({ ...p, total_course_hours: e.target.value }))}
+                    type="number" min="0" step="0.5" placeholder="เช่น 20"
+                    className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                </div>
               </div>
               <div>
-                <label className="text-xs font-medium text-gray-600">โน้ตครู</label>
-                <textarea value={notes} onChange={e => setNotes(e.target.value)}
-                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-16 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                <label className="text-xs font-medium text-gray-600">โน้ตครู (ไม่แสดงให้นักเรียนเห็น)</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
+                  className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-14 focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
-              <div className="flex gap-2">
-                <button onClick={() => setEditing(false)} className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors">ยกเลิก</button>
-                <button onClick={saveEdits} disabled={saving} className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">{saving ? '...' : 'บันทึก'}</button>
-              </div>
-            </div>
-          )}
-
-          {/* Parent portal link */}
-          <div className="mt-4 pt-4 border-t">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-700">ลิงก์ผู้ปกครอง</p>
-                <p className="text-xs text-gray-400">ส่งให้ผู้ปกครองบุ๊คมาร์คไว้</p>
-              </div>
-              <button onClick={copyParentLink}
-                className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${copied ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}>
-                {copied ? '✓ คัดลอกแล้ว' : '📋 คัดลอกลิงก์'}
+              <button onClick={saveEdits} disabled={saving || !editForm.nickname.trim() || !editForm.student_code.trim()}
+                className="w-full bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                {saving ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
               </button>
             </div>
-            {student?.parent_line_notify_token
-              ? <p className="text-xs text-green-600 mt-2">✅ เชื่อมต่อ LINE แจ้งเตือนแล้ว</p>
-              : <p className="text-xs text-amber-500 mt-2">⚠️ ยังไม่ได้ตั้ง LINE Token — แจ้งเตือนอัตโนมัติจะยังไม่ทำงาน</p>
-            }
-          </div>
+          )}
         </div>
 
         {/* Stats */}
@@ -210,6 +291,9 @@ export default function StudentProfilePage() {
                 {fb?.comment && <p className="text-xs text-gray-500 mt-1 truncate">💬 {fb.comment}</p>}
               </div>
             ))}
+            {items.length === 0 && (
+              <div className="text-center py-8 text-gray-400 text-sm">ยังไม่มีงานที่มอบหมายให้นักเรียนคนนี้</div>
+            )}
           </div>
         </div>
       </div>
