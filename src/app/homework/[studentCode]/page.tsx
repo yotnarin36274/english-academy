@@ -203,6 +203,7 @@ export default function StudentHomeworkPage() {
     palette: SUBJECT_PALETTE[i % SUBJECT_PALETTE.length],
   }));
   const hasSubjects = subjectGroups.some(g => g.subject !== '');
+  const hasPerSubjectQuotas = !!(student?.subject_quotas && Object.keys(student.subject_quotas).length > 0);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">กำลังโหลด...</div>;
 
@@ -235,40 +236,55 @@ export default function StudentHomeworkPage() {
 
             {hasSubjects ? (
               // Per-subject grouped view
-              subjectGroups.map((group) => {
-                const quota = student.subject_quotas?.[group.subject];
-                return (
-                  <div key={group.subject} className="space-y-2">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${group.palette.badge}`}>
-                        {group.subject || 'อื่นๆ'}
-                      </span>
-                      <span className="text-sm font-semibold text-gray-700">{group.attendedHours} ชม.</span>
-                      {quota ? (
-                        <span className="text-xs text-gray-400">/ {quota} ชม. · เหลือ {Math.max(0, quota - group.attendedHours)} ชม.</span>
-                      ) : null}
-                    </div>
-                    {quota ? (
-                      <div className="w-full bg-gray-100 rounded-full h-2">
-                        <div className={`${group.palette.bar} h-2 rounded-full transition-all`}
-                          style={{ width: `${Math.min(100, (group.attendedHours / quota) * 100)}%` }} />
+              <>
+                {subjectGroups.map((group) => {
+                  const quota = student.subject_quotas?.[group.subject];
+                  return (
+                    <div key={group.subject} className="space-y-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${group.palette.badge}`}>
+                          {group.subject || 'อื่นๆ'}
+                        </span>
+                        <span className="text-sm font-semibold text-gray-700">{group.attendedHours} ชม.</span>
+                        {quota ? (
+                          <span className="text-xs text-gray-400">/ {quota} ชม. · เหลือ {Math.max(0, quota - group.attendedHours)} ชม.</span>
+                        ) : null}
                       </div>
-                    ) : null}
-                    <div className="space-y-1">
-                      {group.sessions.slice(0, 5).map(s => (
-                        <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
-                          <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
-                          <span className="text-gray-400 shrink-0 w-14">
-                            {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                          </span>
-                          <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
-                          <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
+                      {quota ? (
+                        <div className="w-full bg-gray-100 rounded-full h-2">
+                          <div className={`${group.palette.bar} h-2 rounded-full transition-all`}
+                            style={{ width: `${Math.min(100, (group.attendedHours / quota) * 100)}%` }} />
                         </div>
-                      ))}
+                      ) : null}
+                      <div className="space-y-1">
+                        {group.sessions.slice(0, 5).map(s => (
+                          <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                            <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
+                            <span className="text-gray-400 shrink-0 w-14">
+                              {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                            </span>
+                            <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
+                            <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
+                  );
+                })}
+                {!hasPerSubjectQuotas && student.session_type === 'fixed' && student.total_course_hours ? (
+                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">รวมทุกวิชา <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></span>
+                      <span className="font-semibold text-blue-600">เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2.5">
+                      <div className="bg-blue-500 h-2.5 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (attendedHours / student.total_course_hours) * 100)}%` }} />
+                    </div>
+                    <p className="text-xs text-gray-400">{attendedHours}/{student.total_course_hours} ชม.</p>
                   </div>
-                );
-              })
+                ) : null}
+              </>
             ) : (
               // Flat view (no subjects)
               <>

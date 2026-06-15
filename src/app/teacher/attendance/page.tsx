@@ -385,7 +385,7 @@ export default function AttendancePage() {
                       <p className="text-xs text-gray-400">{stu.grade}
                         {stu.session_type === 'fixed' && stu.total_course_hours ? (
                           <span className="ml-1 font-medium text-blue-500">
-                            · เหลือ {Math.max(0, stu.total_course_hours - (stu.attendedHours ?? 0))} / {stu.total_course_hours} ชม.
+                            · เรียน {stu.attendedHours ?? 0} / {stu.total_course_hours} ชม.
                           </span>
                         ) : stu.attendedHours ? (
                           <span className="ml-1">· เรียน {stu.attendedHours} ชม.</span>
