@@ -3,6 +3,21 @@
 export function VideoPlayer({ url }: { url: string }) {
   if (!url) return null;
 
+  // Google Drive
+  const driveMatch = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+  if (driveMatch) {
+    return (
+      <div className="relative rounded-xl overflow-hidden bg-black" style={{ paddingBottom: '56.25%' }}>
+        <iframe
+          className="absolute inset-0 w-full h-full"
+          src={`https://drive.google.com/file/d/${driveMatch[1]}/preview`}
+          allow="autoplay"
+          allowFullScreen
+        />
+      </div>
+    );
+  }
+
   const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\n?#]+)/);
   if (ytMatch) {
     return (

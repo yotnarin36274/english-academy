@@ -4,7 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { VideoPlayer } from '@/components/VideoPlayer';
+import { loadGoogleScript, requestAccessToken, uploadSessionVideo } from '@/lib/googleDrive';
 import type { ClassSession, Student, Attendance } from '@/lib/db';
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
 interface FeedbackState {
   id?: string;
@@ -32,8 +35,9 @@ export default function SessionReportPage() {
   const [savingReport, setSavingReport] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
 
-  const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const tokenRef = useRef<{ value: string; expiry: number } | null>(null);
 
   const [feedbacks, setFeedbacks] = useState<Map<string, FeedbackState>>(new Map());
 
@@ -43,6 +47,7 @@ export default function SessionReportPage() {
       return;
     }
     loadAll();
+    loadGoogleScript();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
@@ -90,21 +95,31 @@ export default function SessionReportPage() {
     setLoading(false);
   }
 
-  async function uploadVideo(file: File) {
-    setUploading(true);
-    const ext = file.name.split('.').pop() ?? 'mp4';
-    const path = `${sessionId}/${Date.now()}.${ext}`;
-    const { data, error } = await db().storage.from('session-videos').upload(path, file, { upsert: true });
-    if (error) {
-      alert('อัปโหลดไม่สำเร็จ: ' + error.message + '\n\nกรุณาสร้าง Storage bucket ชื่อ "session-videos" (public) ใน Supabase Dashboard → Storage ก่อนครับ');
-      setUploading(false);
-      return;
+  async function getToken(): Promise<string> {
+    if (tokenRef.current && tokenRef.current.expiry > Date.now()) {
+      return tokenRef.current.value;
     }
-    const { data: urlData } = db().storage.from('session-videos').getPublicUrl(data.path);
-    setVideoInput(urlData.publicUrl);
-    setVideoPreview(urlData.publicUrl);
-    setUploading(false);
-    await doSaveReport(urlData.publicUrl, summary);
+    if (!GOOGLE_CLIENT_ID) throw new Error('ยังไม่ได้ตั้งค่า NEXT_PUBLIC_GOOGLE_CLIENT_ID');
+    await loadGoogleScript();
+    const token = await requestAccessToken(GOOGLE_CLIENT_ID);
+    tokenRef.current = { value: token, expiry: Date.now() + 55 * 60 * 1000 };
+    return token;
+  }
+
+  async function uploadVideo(file: File) {
+    try {
+      const token = await getToken();
+      const sessionDate = session?.session_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+      const sessionTopic = session?.topic ?? 'Session';
+      const url = await uploadSessionVideo(file, sessionTopic, sessionDate, token, setUploadProgress);
+      setVideoInput(url);
+      setVideoPreview(url);
+      setUploadProgress(null);
+      await doSaveReport(url, summary);
+    } catch (err) {
+      alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
+      setUploadProgress(null);
+    }
   }
 
   async function doSaveReport(url: string, summaryText: string) {
@@ -205,12 +220,25 @@ export default function SessionReportPage() {
             placeholder="วาง URL วิดีโอ (YouTube, Google Drive, ฯลฯ)"
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
-          <button
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="w-full border border-gray-300 text-gray-600 text-sm py-2.5 rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50">
-            {uploading ? '⏳ กำลังอัปโหลด...' : '📁 อัปโหลดไฟล์วิดีโอ'}
-          </button>
+          {uploadProgress !== null ? (
+            <div className="space-y-1.5">
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>⬆️ กำลังอัปโหลดไปยัง Google Drive...</span>
+                <span className="font-semibold text-blue-600">{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5">
+                <div className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
+                  style={{ width: `${uploadProgress}%` }} />
+              </div>
+              <p className="text-xs text-gray-400 text-center">กรุณาอย่าปิดหน้าต่างขณะอัปโหลด</p>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileRef.current?.click()}
+              className="w-full border border-blue-300 text-blue-600 bg-blue-50 text-sm py-2.5 rounded-xl hover:bg-blue-100 transition-colors font-medium">
+              ☁️ อัปโหลดไปยัง Google Drive
+            </button>
+          )}
           <input ref={fileRef} type="file" accept="video/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ''; }} />
         </div>
