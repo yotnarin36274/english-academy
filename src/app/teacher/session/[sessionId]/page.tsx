@@ -28,14 +28,14 @@ export default function SessionReportPage() {
   const [students, setStudents] = useState<StudentWithAtt[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const [videoInput, setVideoInput] = useState('');
-  const [videoPreview, setVideoPreview] = useState('');
+  const [videoUrls, setVideoUrls] = useState<string[]>([]);
+  const [urlInput, setUrlInput] = useState('');
   const [summary, setSummary] = useState('');
   const [reportId, setReportId] = useState<string | null>(null);
   const [savingReport, setSavingReport] = useState(false);
   const [reportSaved, setReportSaved] = useState(false);
 
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [currentUpload, setCurrentUpload] = useState<{ name: string; idx: number; total: number; progress: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const tokenRef = useRef<{ value: string; expiry: number } | null>(null);
 
@@ -81,8 +81,10 @@ export default function SessionReportPage() {
     const { data: report } = await db().from('session_reports').select('*').eq('session_id', sessionId).single();
     if (report) {
       setReportId(report.id);
-      setVideoInput(report.video_url ?? '');
-      setVideoPreview(report.video_url ?? '');
+      const urls = (report.video_urls ?? []).length > 0
+        ? (report.video_urls as string[])
+        : report.video_url ? [report.video_url as string] : [];
+      setVideoUrls(urls);
       setSummary(report.summary ?? '');
     }
 
@@ -106,27 +108,53 @@ export default function SessionReportPage() {
     return token;
   }
 
-  async function uploadVideo(file: File) {
+  async function uploadFiles(files: File[]) {
     try {
       const token = await getToken();
       const sessionDate = session?.session_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
       const sessionTopic = session?.topic ?? 'Session';
-      const url = await uploadSessionVideo(file, sessionTopic, sessionDate, token, setUploadProgress);
-      setVideoInput(url);
-      setVideoPreview(url);
-      setUploadProgress(null);
-      await doSaveReport(url, summary);
+      const newUrls: string[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setCurrentUpload({ name: file.name, idx: i + 1, total: files.length, progress: 0 });
+        const url = await uploadSessionVideo(file, sessionTopic, sessionDate, token, (pct) => {
+          setCurrentUpload(prev => prev ? { ...prev, progress: pct } : null);
+        });
+        newUrls.push(url);
+      }
+
+      const allUrls = [...videoUrls, ...newUrls];
+      setVideoUrls(allUrls);
+      setCurrentUpload(null);
+      await doSaveReport(allUrls, summary);
     } catch (err) {
       alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
-      setUploadProgress(null);
+      setCurrentUpload(null);
     }
   }
 
-  async function doSaveReport(url: string, summaryText: string) {
+  async function removeVideo(idx: number) {
+    const newUrls = videoUrls.filter((_, i) => i !== idx);
+    setVideoUrls(newUrls);
+    await doSaveReport(newUrls, summary);
+  }
+
+  async function addUrlVideo() {
+    const url = urlInput.trim();
+    if (!url) return;
+    const newUrls = [...videoUrls, url];
+    setVideoUrls(newUrls);
+    setUrlInput('');
+    await doSaveReport(newUrls, summary);
+  }
+
+  async function doSaveReport(urls: string[], summaryText: string) {
     setSavingReport(true);
     const payload = {
       session_id: sessionId,
-      video_url: url.trim() || null,
+      video_urls: urls,
+      video_url: urls[0] ?? null,
       summary: summaryText.trim() || null,
       updated_at: new Date().toISOString(),
     };
@@ -142,9 +170,7 @@ export default function SessionReportPage() {
   }
 
   async function saveReport() {
-    const url = videoInput.trim();
-    setVideoPreview(url);
-    await doSaveReport(url, summary);
+    await doSaveReport(videoUrls, summary);
   }
 
   async function saveFeedback(studentId: string) {
@@ -210,25 +236,55 @@ export default function SessionReportPage() {
       <div className="max-w-2xl mx-auto px-4 mt-4 space-y-5">
         {/* Video */}
         <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">📹 วิดีโอการสอน</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-700">📹 วิดีโอการสอน</h2>
+            {videoUrls.length > 0 && (
+              <span className="text-xs text-gray-400">{videoUrls.length} วิดีโอ</span>
+            )}
+          </div>
 
-          {videoPreview && <VideoPlayer url={videoPreview} />}
+          {/* รายการวิดีโอที่อัปโหลดแล้ว */}
+          {videoUrls.map((url, i) => (
+            <div key={i} className="relative">
+              {videoUrls.length > 1 && (
+                <p className="text-xs font-semibold text-gray-500 mb-1.5">วิดีโอที่ {i + 1}</p>
+              )}
+              <VideoPlayer url={url} />
+              <button
+                onClick={() => removeVideo(i)}
+                className="absolute top-2 right-2 bg-red-500/90 hover:bg-red-600 text-white text-xs px-2 py-1 rounded-lg transition-colors">
+                ✕ ลบ
+              </button>
+            </div>
+          ))}
 
-          <input
-            value={videoInput}
-            onChange={e => setVideoInput(e.target.value)}
-            placeholder="วาง URL วิดีโอ (YouTube, Google Drive, ฯลฯ)"
-            className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          {uploadProgress !== null ? (
+          {/* วาง URL */}
+          <div className="flex gap-2">
+            <input
+              value={urlInput}
+              onChange={e => setUrlInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addUrlVideo(); }}
+              placeholder="วาง URL วิดีโอ (YouTube, Google Drive, ฯลฯ)"
+              className="flex-1 border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <button
+              onClick={addUrlVideo}
+              disabled={!urlInput.trim()}
+              className="shrink-0 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm rounded-xl disabled:opacity-40 font-medium transition-colors">
+              เพิ่ม
+            </button>
+          </div>
+
+          {/* Progress หรือปุ่มอัปโหลด */}
+          {currentUpload ? (
             <div className="space-y-1.5">
               <div className="flex justify-between text-xs text-gray-500">
-                <span>⬆️ กำลังอัปโหลดไปยัง Google Drive...</span>
-                <span className="font-semibold text-blue-600">{uploadProgress}%</span>
+                <span className="truncate">⬆️ {currentUpload.idx}/{currentUpload.total}: {currentUpload.name}</span>
+                <span className="font-semibold text-blue-600 shrink-0 ml-2">{currentUpload.progress}%</span>
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2.5">
                 <div className="bg-blue-500 h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${uploadProgress}%` }} />
+                  style={{ width: `${currentUpload.progress}%` }} />
               </div>
               <p className="text-xs text-gray-400 text-center">กรุณาอย่าปิดหน้าต่างขณะอัปโหลด</p>
             </div>
@@ -237,10 +293,11 @@ export default function SessionReportPage() {
               onClick={() => fileRef.current?.click()}
               className="w-full border border-blue-300 text-blue-600 bg-blue-50 text-sm py-2.5 rounded-xl hover:bg-blue-100 transition-colors font-medium">
               ☁️ อัปโหลดไปยัง Google Drive
+              <span className="text-xs text-blue-400 ml-1">(เลือกได้หลายไฟล์พร้อมกัน)</span>
             </button>
           )}
-          <input ref={fileRef} type="file" accept="video/*" className="hidden"
-            onChange={e => { const f = e.target.files?.[0]; if (f) uploadVideo(f); e.target.value = ''; }} />
+          <input ref={fileRef} type="file" accept="video/*" multiple className="hidden"
+            onChange={e => { const files = Array.from(e.target.files ?? []); if (files.length) uploadFiles(files); e.target.value = ''; }} />
         </div>
 
         {/* Class summary */}
@@ -261,7 +318,7 @@ export default function SessionReportPage() {
                 ? 'bg-green-500 text-white'
                 : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'
             }`}>
-            {savingReport ? 'กำลังบันทึก...' : reportSaved ? '✅ บันทึกแล้ว' : '💾 บันทึกวิดีโอ + สรุปคาบ'}
+            {savingReport ? 'กำลังบันทึก...' : reportSaved ? '✅ บันทึกแล้ว' : '💾 บันทึกสรุปคาบ'}
           </button>
         </div>
 

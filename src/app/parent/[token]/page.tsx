@@ -16,7 +16,7 @@ interface ProgressItem {
 
 interface SessionReportInfo {
   id: string; session_date: string; topic: string; duration_hours: number; status: string;
-  video_url: string | null; summary: string | null; feedback: string | null;
+  video_urls: string[]; summary: string | null; feedback: string | null;
 }
 
 function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' {
@@ -198,14 +198,17 @@ export default function ParentPortalPage() {
     ]);
     setMakeups((mkData ?? []) as {id: string; topic: string; duration_hours: number}[]);
 
-    const rMap = new Map<string, {video_url: string|null; summary: string|null}>();
-    (reportsData ?? []).forEach((r: {session_id: string; video_url: string|null; summary: string|null}) => rMap.set(r.session_id, r));
+    const rMap = new Map<string, {video_urls: string[]; video_url: string|null; summary: string|null}>();
+    (reportsData ?? []).forEach((r: {session_id: string; video_urls?: string[]; video_url?: string|null; summary: string|null}) => {
+      const urls = (r.video_urls ?? []).length > 0 ? r.video_urls! : r.video_url ? [r.video_url] : [];
+      rMap.set(r.session_id, { video_urls: urls, video_url: r.video_url ?? null, summary: r.summary });
+    });
     const fMap = new Map<string, string|null>();
     (fbData ?? []).forEach((f: {session_id: string; feedback: string|null}) => fMap.set(f.session_id, f.feedback));
 
     const reports: SessionReportInfo[] = merged
-      .map(s => ({ ...s, video_url: rMap.get(s.id)?.video_url ?? null, summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null }))
-      .filter(r => r.video_url || r.summary || r.feedback);
+      .map(s => ({ ...s, video_urls: rMap.get(s.id)?.video_urls ?? [], summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null }))
+      .filter(r => r.video_urls.length > 0 || r.summary || r.feedback);
     setSessionReports(reports);
     if (reports.length > 0) setExpandedReports(new Set([reports[0].id]));
   }
@@ -368,13 +371,20 @@ export default function ParentPortalPage() {
                           {' · '}{sr.duration_hours} ชม.
                         </p>
                       </div>
-                      {sr.video_url && <span className="text-xs shrink-0">📹</span>}
+                      {sr.video_urls.length > 0 && <span className="text-xs shrink-0">📹{sr.video_urls.length > 1 ? ` ${sr.video_urls.length}` : ''}</span>}
                       {sr.feedback && <span className="text-xs shrink-0">💬</span>}
                       <span className="text-gray-300 shrink-0 text-xs">{expanded ? '▲' : '▼'}</span>
                     </button>
                     {expanded && (
                       <div className="px-3 pb-3 space-y-3 border-t border-gray-50 pt-3">
-                        {sr.video_url && <VideoPlayer url={sr.video_url} />}
+                        {sr.video_urls.map((url, vi) => (
+                          <div key={vi}>
+                            {sr.video_urls.length > 1 && (
+                              <p className="text-xs font-semibold text-gray-500 mb-1">วิดีโอที่ {vi + 1}</p>
+                            )}
+                            <VideoPlayer url={url} />
+                          </div>
+                        ))}
                         {sr.summary && (
                           <div className="bg-gray-50 rounded-xl px-3 py-2.5">
                             <p className="text-xs font-semibold text-gray-500 mb-1">📝 สรุปเนื้อหา</p>

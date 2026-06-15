@@ -105,6 +105,7 @@ export interface SessionReport {
   updated_at: string;
   session_id: string;
   video_url: string | null;
+  video_urls: string[];
   summary: string | null;
 }
 
