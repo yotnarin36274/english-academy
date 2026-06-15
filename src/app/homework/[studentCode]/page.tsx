@@ -14,9 +14,16 @@ interface AssignmentWithStatus extends Assignment {
 }
 
 interface SessionReportInfo {
-  id: string; session_date: string; topic: string; duration_hours: number; status: string;
+  id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string;
   video_urls: string[]; summary: string | null; feedback: string | null;
 }
+
+const SUBJECT_PALETTE = [
+  { badge: 'bg-blue-100 text-blue-700', bar: 'bg-blue-500' },
+  { badge: 'bg-green-100 text-green-700', bar: 'bg-green-500' },
+  { badge: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500' },
+  { badge: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500' },
+];
 
 export default function StudentHomeworkPage() {
   const { studentCode } = useParams<{ studentCode: string }>();
@@ -26,7 +33,7 @@ export default function StudentHomeworkPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
-  const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; duration_hours: number; status: string}>>([]);
+  const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string}>>([]);
   const [makeups, setMakeups] = useState<Array<{id: string; topic: string; duration_hours: number}>>([]);
   const [attendedHours, setAttendedHours] = useState(0);
   const [radarAxes, setRadarAxes] = useState<RadarAxis[]>([]);
@@ -134,13 +141,13 @@ export default function StudentHomeworkPage() {
 
     const sessionIds = (attData as {status: string; session_id: string}[]).map(a => a.session_id);
     const { data: sessionData } = await db()
-      .from('class_sessions').select('id, session_date, topic, duration_hours')
+      .from('class_sessions').select('id, session_date, topic, subject, duration_hours')
       .in('id', sessionIds).order('session_date', { ascending: false });
 
-    const sMap = new Map((sessionData ?? []).map((s: {id: string; session_date: string; topic: string; duration_hours: number}) => [s.id, s]));
+    const sMap = new Map((sessionData ?? []).map((s: {id: string; session_date: string; topic: string; subject: string; duration_hours: number}) => [s.id, s]));
     const merged = (attData as {status: string; session_id: string}[])
-      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, status: a.status } : null; })
-      .filter(Boolean) as {id: string; session_date: string; topic: string; duration_hours: number; status: string}[];
+      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, subject: s.subject ?? '', status: a.status } : null; })
+      .filter(Boolean) as {id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string}[];
     merged.sort((a, b) => b.session_date.localeCompare(a.session_date));
     setSessions(merged);
 
@@ -151,7 +158,7 @@ export default function StudentHomeworkPage() {
 
     const [{ data: mkData }, { data: reportsData }, { data: fbData }] = await Promise.all([
       db().from('makeup_classes').select('id, topic, duration_hours').eq('student_id', stu.id).eq('completed', false),
-      db().from('session_reports').select('session_id, video_url, summary').in('session_id', sessionIds),
+      db().from('session_reports').select('session_id, video_url, video_urls, summary').in('session_id', sessionIds),
       db().from('session_student_feedback').select('session_id, feedback').eq('student_id', stu.id),
     ]);
     setMakeups((mkData ?? []) as {id: string; topic: string; duration_hours: number}[]);
@@ -165,7 +172,7 @@ export default function StudentHomeworkPage() {
     (fbData ?? []).forEach((f: {session_id: string; feedback: string|null}) => fMap.set(f.session_id, f.feedback));
 
     const reports: SessionReportInfo[] = merged
-      .map(s => ({ ...s, video_urls: rMap.get(s.id)?.video_urls ?? [], summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null }))
+      .map(s => ({ ...s, subject: s.subject ?? '', video_urls: rMap.get(s.id)?.video_urls ?? [], summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null }))
       .filter(r => r.video_urls.length > 0 || r.summary || r.feedback);
     setSessionReports(reports);
     if (reports.length > 0) setExpandedReports(new Set([reports[0].id]));
@@ -181,6 +188,21 @@ export default function StudentHomeworkPage() {
   const pending = assignments.filter(a => !a.submission);
   const submitted = assignments.filter(a => a.submission && !a.feedback);
   const reviewed = assignments.filter(a => a.feedback);
+
+  // Subject grouping
+  const subjectGroupMap = new Map<string, typeof sessions>();
+  for (const s of sessions) {
+    const key = s.subject ?? '';
+    if (!subjectGroupMap.has(key)) subjectGroupMap.set(key, []);
+    subjectGroupMap.get(key)!.push(s);
+  }
+  const subjectGroups = [...subjectGroupMap.entries()].map(([subject, slist], i) => ({
+    subject,
+    sessions: slist,
+    attendedHours: slist.filter(s => s.status === 'present').reduce((sum, s) => sum + s.duration_hours, 0),
+    palette: SUBJECT_PALETTE[i % SUBJECT_PALETTE.length],
+  }));
+  const hasSubjects = subjectGroups.some(g => g.subject !== '');
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">กำลังโหลด...</div>;
 
@@ -208,24 +230,82 @@ export default function StudentHomeworkPage() {
       <div className="max-w-lg mx-auto px-4 mt-5 space-y-6">
         {/* Session history */}
         {(student.total_course_hours || sessions.length > 0 || makeups.length > 0) && (
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
+          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-4">
             <h2 className="text-sm font-semibold text-gray-700">📅 ชั่วโมงเรียน</h2>
 
-            {student.session_type === 'fixed' && student.total_course_hours ? (
-              <div>
-                <div className="flex justify-between text-sm mb-1.5">
-                  <span className="text-gray-500">เรียนแล้ว <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></span>
-                  <span className="font-semibold text-blue-600">เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</span>
+            {hasSubjects ? (
+              // Per-subject grouped view
+              subjectGroups.map((group) => {
+                const quota = student.subject_quotas?.[group.subject];
+                return (
+                  <div key={group.subject} className="space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${group.palette.badge}`}>
+                        {group.subject || 'อื่นๆ'}
+                      </span>
+                      <span className="text-sm font-semibold text-gray-700">{group.attendedHours} ชม.</span>
+                      {quota ? (
+                        <span className="text-xs text-gray-400">/ {quota} ชม. · เหลือ {Math.max(0, quota - group.attendedHours)} ชม.</span>
+                      ) : null}
+                    </div>
+                    {quota ? (
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className={`${group.palette.bar} h-2 rounded-full transition-all`}
+                          style={{ width: `${Math.min(100, (group.attendedHours / quota) * 100)}%` }} />
+                      </div>
+                    ) : null}
+                    <div className="space-y-1">
+                      {group.sessions.slice(0, 5).map(s => (
+                        <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                          <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
+                          <span className="text-gray-400 shrink-0 w-14">
+                            {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                          </span>
+                          <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
+                          <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              // Flat view (no subjects)
+              <>
+                {student.session_type === 'fixed' && student.total_course_hours ? (
+                  <div>
+                    <div className="flex justify-between text-sm mb-1.5">
+                      <span className="text-gray-500">เรียนแล้ว <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></span>
+                      <span className="font-semibold text-blue-600">เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</span>
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-full h-2.5">
+                      <div className="bg-blue-500 h-2.5 rounded-full transition-all"
+                        style={{ width: `${Math.min(100, (attendedHours / student.total_course_hours) * 100)}%` }} />
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">{attendedHours}/{student.total_course_hours} ชม.</p>
+                  </div>
+                ) : attendedHours > 0 ? (
+                  <p className="text-sm text-gray-600">รวมเรียน <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></p>
+                ) : null}
+                {sessions.length > 0 && (
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 mb-1.5">📋 ประวัติการเรียน</p>
+                    <div className="space-y-1">
+                      {sessions.slice(0, 6).map(s => (
+                        <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                          <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
+                          <span className="text-gray-400 shrink-0 w-14">
+                            {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                      </span>
+                      <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
+                      <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
+                    </div>
+                  ))}
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2.5">
-                  <div className="bg-blue-500 h-2.5 rounded-full transition-all"
-                    style={{ width: `${Math.min(100, (attendedHours / student.total_course_hours) * 100)}%` }} />
-                </div>
-                <p className="text-xs text-gray-400 mt-1">{attendedHours}/{student.total_course_hours} ชม.</p>
               </div>
-            ) : attendedHours > 0 ? (
-              <p className="text-sm text-gray-600">รวมเรียน <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></p>
-            ) : null}
+            )}
+              </>
+            )}
 
             {makeups.length > 0 && (
               <div>
@@ -235,24 +315,6 @@ export default function StudentHomeworkPage() {
                     {m.topic} · {m.duration_hours} ชม.
                   </div>
                 ))}
-              </div>
-            )}
-
-            {sessions.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold text-gray-500 mb-1.5">📋 ประวัติการเรียน</p>
-                <div className="space-y-1">
-                  {sessions.slice(0, 6).map(s => (
-                    <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
-                      <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
-                      <span className="text-gray-400 shrink-0 w-14">
-                        {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                      </span>
-                      <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
-                      <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
-                    </div>
-                  ))}
-                </div>
               </div>
             )}
           </section>
@@ -272,7 +334,10 @@ export default function StudentHomeworkPage() {
                       className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
                       <span className="text-sm">{sr.status === 'present' ? '✅' : sr.status === 'absent' ? '❌' : '🤒'}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">{sr.topic}</p>
+                        <p className="text-sm font-medium text-gray-800 truncate">
+                          {sr.subject && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium mr-1">{sr.subject}</span>}
+                          {sr.topic}
+                        </p>
                         <p className="text-xs text-gray-400">
                           {new Date(sr.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
                           {' · '}{sr.duration_hours} ชม.

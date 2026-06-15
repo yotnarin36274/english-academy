@@ -13,6 +13,7 @@ export interface Student {
   total_course_hours: number | null;
   session_type: 'fixed' | 'hourly';
   level: string | null;
+  subject_quotas: Record<string, number> | null;
 }
 
 export interface ClassSession {
@@ -20,6 +21,7 @@ export interface ClassSession {
   created_at: string;
   session_date: string;
   topic: string;
+  subject: string;
   duration_hours: number;
   group_key: string | null;
   student_ids: string[];

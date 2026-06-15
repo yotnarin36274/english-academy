@@ -40,7 +40,8 @@ export default function StudentProfilePage() {
   const [radarAxes, setRadarAxes] = useState<RadarAxis[]>([]);
   const [radarSessions, setRadarSessions] = useState(0);
   const [attendedHours, setAttendedHours] = useState(0);
-  const [sessionsList, setSessionsList] = useState<Array<{ session_date: string; topic: string; duration_hours: number; status: string }>>([]);
+  const [sessionsList, setSessionsList] = useState<Array<{ session_date: string; topic: string; subject: string; duration_hours: number; status: string }>>([]);
+  const [subjectQuotasInput, setSubjectQuotasInput] = useState<{ subject: string; hours: string }[]>([]);
   const [makeupsList, setMakeupsList] = useState<Array<{ topic: string; duration_hours: number }>>([]);
   const [editForm, setEditForm] = useState({
     nickname: '', full_name: '', grade: 'ป.4', student_code: '',
@@ -115,11 +116,11 @@ export default function StudentProfilePage() {
     const { data: attData } = await db().from('attendance').select('status, session_id').eq('student_id', studentId);
     if (!attData?.length) { setAttendedHours(0); setSessionsList([]); setMakeupsList([]); return; }
     const sessionIds = (attData as { status: string; session_id: string }[]).map(a => a.session_id);
-    const { data: sessionData } = await db().from('class_sessions').select('id, session_date, topic, duration_hours').in('id', sessionIds).order('session_date', { ascending: false });
-    const sMap = new Map((sessionData ?? []).map((s: { id: string; session_date: string; topic: string; duration_hours: number }) => [s.id, s]));
+    const { data: sessionData } = await db().from('class_sessions').select('id, session_date, topic, subject, duration_hours').in('id', sessionIds).order('session_date', { ascending: false });
+    const sMap = new Map((sessionData ?? []).map((s: { id: string; session_date: string; topic: string; subject: string; duration_hours: number }) => [s.id, s]));
     const merged = (attData as { status: string; session_id: string }[])
-      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, status: a.status } : null; })
-      .filter(Boolean) as { session_date: string; topic: string; duration_hours: number; status: string }[];
+      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, subject: s.subject ?? '', status: a.status } : null; })
+      .filter(Boolean) as { session_date: string; topic: string; subject: string; duration_hours: number; status: string }[];
     merged.sort((a, b) => b.session_date.localeCompare(a.session_date));
     setSessionsList(merged);
     setAttendedHours((attData as { status: string; session_id: string }[])
@@ -137,18 +138,25 @@ export default function StudentProfilePage() {
       level: student.level ?? '', total_course_hours: student.total_course_hours?.toString() ?? '',
       notes: student.notes ?? '',
     });
+    const quotas = student.subject_quotas as Record<string, number> | null;
+    setSubjectQuotasInput(quotas ? Object.entries(quotas).map(([subject, hours]) => ({ subject, hours: hours.toString() })) : []);
     setEditing(true);
   }
 
   async function saveEdits() {
     if (!student || !editForm.nickname.trim() || !editForm.student_code.trim()) return;
     setSaving(true);
+    const subjectQuotasObj = subjectQuotasInput.reduce((acc, { subject, hours }) => {
+      if (subject.trim() && hours) acc[subject.trim()] = parseFloat(hours) || 0;
+      return acc;
+    }, {} as Record<string, number>);
     const updates = {
       nickname: editForm.nickname.trim(), full_name: editForm.full_name.trim() || null,
       grade: editForm.grade, group_key: GRADE_GROUP[editForm.grade] ?? student.group_key,
       student_code: editForm.student_code.trim().toUpperCase(), level: editForm.level || null,
       total_course_hours: editForm.total_course_hours ? parseFloat(editForm.total_course_hours) : null,
       notes: editForm.notes.trim() || null,
+      subject_quotas: Object.keys(subjectQuotasObj).length > 0 ? subjectQuotasObj : null,
     };
     await db().from('students').update(updates).eq('id', student.id);
     setStudent(prev => prev ? { ...prev, ...updates } : null);
@@ -163,7 +171,26 @@ export default function StudentProfilePage() {
       `รหัส: ${student.student_code}${student.level ? ` · ${student.level}` : ''} | ENG SPARK Academy`,
       '',
     ];
-    if (student.session_type === 'fixed' && student.total_course_hours) {
+    const subjectGroups = new Map<string, { attended: number }>();
+    for (const s of sessionsList) {
+      const key = s.subject ?? '';
+      if (!subjectGroups.has(key)) subjectGroups.set(key, { attended: 0 });
+      if (s.status === 'present') subjectGroups.get(key)!.attended += s.duration_hours;
+    }
+    const hasSubjects = [...subjectGroups.keys()].some(k => k !== '');
+    if (hasSubjects) {
+      lines.push('⏱ ชั่วโมงเรียนแยกวิชา');
+      const quotas = student.subject_quotas as Record<string, number> | null;
+      for (const [subj, g] of subjectGroups.entries()) {
+        const quota = quotas?.[subj];
+        if (subj) {
+          lines.push(quota
+            ? `${subj}: ${g.attended} / ${quota} ชม. (เหลือ ${Math.max(0, quota - g.attended)} ชม.)`
+            : `${subj}: ${g.attended} ชม.`);
+        }
+      }
+      lines.push('');
+    } else if (student.session_type === 'fixed' && student.total_course_hours) {
       const rem = Math.max(0, student.total_course_hours - attendedHours);
       lines.push('⏱ ชั่วโมงเรียน');
       lines.push(`เรียนแล้ว ${attendedHours} ชม. / ทั้งหมด ${student.total_course_hours} ชม.`);
@@ -192,7 +219,7 @@ export default function StudentProfilePage() {
       sessionsList.slice(0, 4).forEach(s => {
         const icon = s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒';
         const date = new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' });
-        lines.push(`${icon} ${date} · ${s.topic} (${s.duration_hours} ชม.)`);
+        lines.push(`${icon} ${date} · ${s.subject ? `[${s.subject}] ` : ''}${s.topic} (${s.duration_hours} ชม.)`);
       });
     }
     lines.push('');
@@ -313,6 +340,30 @@ export default function StudentProfilePage() {
                 <textarea value={editForm.notes} onChange={e => setEditForm(p => ({ ...p, notes: e.target.value }))}
                   className="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 text-sm resize-none h-14 focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">ชั่วโมงแยกวิชา (ถ้าเรียนหลายวิชา)</label>
+                <div className="mt-1 space-y-2">
+                  {subjectQuotasInput.map((sq, i) => (
+                    <div key={i} className="flex gap-2 items-center">
+                      <input value={sq.subject} list="subjects-datalist"
+                        onChange={e => setSubjectQuotasInput(prev => prev.map((x, j) => j === i ? { ...x, subject: e.target.value } : x))}
+                        placeholder="English, MATH…"
+                        className="flex-1 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <input type="number" value={sq.hours} min="0" step="0.5"
+                        onChange={e => setSubjectQuotasInput(prev => prev.map((x, j) => j === i ? { ...x, hours: e.target.value } : x))}
+                        placeholder="ชม."
+                        className="w-20 border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      <button onClick={() => setSubjectQuotasInput(prev => prev.filter((_, j) => j !== i))}
+                        className="text-red-400 hover:text-red-600 text-lg leading-none shrink-0">×</button>
+                    </div>
+                  ))}
+                  <button onClick={() => setSubjectQuotasInput(prev => [...prev, { subject: '', hours: '' }])}
+                    className="text-xs text-blue-600 hover:underline">+ เพิ่มวิชา</button>
+                </div>
+                <datalist id="subjects-datalist">
+                  <option value="English" /><option value="MATH" /><option value="Science" /><option value="Thai" />
+                </datalist>
+              </div>
               <button onClick={saveEdits} disabled={saving || !editForm.nickname.trim() || !editForm.student_code.trim()}
                 className="w-full bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
                 {saving ? 'กำลังบันทึก...' : '💾 บันทึกการแก้ไข'}
@@ -353,9 +404,19 @@ export default function StudentProfilePage() {
           </div>
           {attendedHours > 0 && (
             <div className="text-xs text-gray-600 bg-gray-50 rounded-xl p-3 space-y-0.5">
-              {student?.total_course_hours
-                ? <p>⏱ เรียนแล้ว {attendedHours} / {student.total_course_hours} ชม. · เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</p>
-                : <p>⏱ รวมเรียน {attendedHours} ชม.</p>}
+              {(() => {
+                const subjectMap = new Map<string, number>();
+                for (const s of sessionsList) {
+                  if (s.subject && s.status === 'present') subjectMap.set(s.subject, (subjectMap.get(s.subject) ?? 0) + s.duration_hours);
+                }
+                const hasSubjs = subjectMap.size > 0;
+                const quotas = student?.subject_quotas as Record<string, number> | null;
+                return hasSubjs
+                  ? [...subjectMap.entries()].map(([subj, hrs]) => (
+                    <p key={subj}>📚 {subj}: {hrs} ชม.{quotas?.[subj] ? ` / ${quotas[subj]} ชม. (เหลือ ${Math.max(0, quotas[subj] - hrs)} ชม.)` : ''}</p>
+                  ))
+                  : <p>⏱ เรียนแล้ว {attendedHours}{student?.total_course_hours ? ` / ${student.total_course_hours} ชม. · เหลือ ${Math.max(0, student.total_course_hours - attendedHours)}` : ''} ชม.</p>;
+              })()}
               {makeupsList.length > 0 && <p>🔁 Make-up คงค้าง {makeupsList.length} รายการ</p>}
             </div>
           )}

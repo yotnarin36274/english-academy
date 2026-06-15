@@ -26,7 +26,7 @@ export default function AttendancePage() {
 
   // Edit / delete session
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
-  const [editSessionForm, setEditSessionForm] = useState({ date: '', topic: '', hours: '', week: '' });
+  const [editSessionForm, setEditSessionForm] = useState({ date: '', topic: '', hours: '', week: '', subject: '' });
   const [editSessionSaving, setEditSessionSaving] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
 
@@ -37,6 +37,7 @@ export default function AttendancePage() {
   const [formHours, setFormHours] = useState('1.5');
   const [formWeek, setFormWeek] = useState('');
   const [formMode, setFormMode] = useState<'group' | 'individual'>('group');
+  const [formSubject, setFormSubject] = useState('');
   const [formGroups, setFormGroups] = useState<string[]>([]);
   const [formStudentIds, setFormStudentIds] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
@@ -151,6 +152,7 @@ export default function AttendancePage() {
       topic: s.topic,
       hours: s.duration_hours.toString(),
       week: s.week_number?.toString() ?? '',
+      subject: s.subject ?? '',
     });
     setEditingSessionId(s.id);
   }
@@ -163,6 +165,7 @@ export default function AttendancePage() {
       topic: editSessionForm.topic.trim(),
       duration_hours: parseFloat(editSessionForm.hours) || 1.5,
       week_number: editSessionForm.week ? parseInt(editSessionForm.week) : null,
+      subject: editSessionForm.subject.trim(),
     }).eq('id', editingSessionId);
     setEditSessionSaving(false);
     setEditingSessionId(null);
@@ -189,6 +192,7 @@ export default function AttendancePage() {
     const { data } = await db().from('class_sessions').insert({
       session_date: formDate,
       topic: formTopic.trim(),
+      subject: formSubject.trim(),
       duration_hours: parseFloat(formHours) || 1.5,
       week_number: formWeek ? parseInt(formWeek) : null,
       group_key: formMode === 'group' && formGroups.length === 1 ? formGroups[0] : null,
@@ -197,7 +201,7 @@ export default function AttendancePage() {
     setCreating(false);
     if (data) {
       setShowForm(false);
-      setFormTopic(''); setFormGroups([]); setFormStudentIds([]); setFormWeek('');
+      setFormTopic(''); setFormSubject(''); setFormGroups([]); setFormStudentIds([]); setFormWeek('');
       await loadSessions();
       selectSession(data as ClassSession);
     }
@@ -256,6 +260,18 @@ export default function AttendancePage() {
                   placeholder="เช่น 3"
                   className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
               </div>
+            </div>
+            <div>
+              <label className="text-xs font-medium text-gray-600">วิชา</label>
+              <input type="text" value={formSubject} onChange={e => setFormSubject(e.target.value)}
+                list="subjects-datalist" placeholder="เช่น English, MATH, Science"
+                className="mt-1 w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+              <datalist id="subjects-datalist">
+                <option value="English" />
+                <option value="MATH" />
+                <option value="Science" />
+                <option value="Thai" />
+              </datalist>
             </div>
             <div>
               <label className="text-xs font-medium text-gray-600">หัวข้อที่สอน *</label>
@@ -330,6 +346,11 @@ export default function AttendancePage() {
                     {new Date(selectedSession.session_date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long' })}
                     {selectedSession.week_number && ` · สัปดาห์ ${selectedSession.week_number}`}
                   </p>
+                  {selectedSession.subject && (
+                    <span className="inline-block mt-1 text-xs px-2 py-0.5 rounded-full bg-white/20 text-white font-medium">
+                      {selectedSession.subject}
+                    </span>
+                  )}
                   <h2 className="font-bold text-lg mt-0.5">{selectedSession.topic}</h2>
                   <p className="text-blue-100 text-sm">⏱ {selectedSession.duration_hours} ชม.</p>
                 </div>
@@ -428,6 +449,13 @@ export default function AttendancePage() {
                         </div>
                       </div>
                       <div>
+                        <label className="text-xs font-medium text-gray-600">วิชา</label>
+                        <input value={editSessionForm.subject}
+                          onChange={e => setEditSessionForm(f => ({ ...f, subject: e.target.value }))}
+                          list="subjects-datalist" placeholder="เช่น English, MATH"
+                          className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                      </div>
+                      <div>
                         <label className="text-xs font-medium text-gray-600">หัวข้อ *</label>
                         <input value={editSessionForm.topic}
                           onChange={e => setEditSessionForm(f => ({ ...f, topic: e.target.value }))}
@@ -456,7 +484,14 @@ export default function AttendancePage() {
                   <div key={s.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
                     <div className="flex items-center gap-2">
                       <button onClick={() => selectSession(s)} className="flex-1 text-left">
-                        <p className="font-semibold text-gray-800">{s.topic}</p>
+                        <p className="font-semibold text-gray-800">
+                          {s.subject && (
+                            <span className="inline-block text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium mr-1.5 align-middle">
+                              {s.subject}
+                            </span>
+                          )}
+                          {s.topic}
+                        </p>
                         <p className="text-xs text-gray-400 mt-0.5">
                           {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}
                           {s.week_number && ` · สัปดาห์ ${s.week_number}`}
