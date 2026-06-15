@@ -6,11 +6,17 @@ import { db } from '@/lib/supabase';
 import { RadarChart } from '@/components/RadarChart';
 import type { RadarAxis } from '@/components/RadarChart';
 import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
+import { VideoPlayer } from '@/components/VideoPlayer';
 
 interface ProgressItem {
   assignment: Assignment;
   submission: HomeworkSubmission | null;
   feedback: FeedbackRow | null;
+}
+
+interface SessionReportInfo {
+  id: string; session_date: string; topic: string; duration_hours: number; status: string;
+  video_url: string | null; summary: string | null; feedback: string | null;
 }
 
 function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' {
@@ -83,6 +89,8 @@ export default function ParentPortalPage() {
   const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; duration_hours: number; status: string}>>([]);
   const [makeups, setMakeups] = useState<Array<{id: string; topic: string; duration_hours: number}>>([]);
   const [attendedHours, setAttendedHours] = useState(0);
+  const [sessionReports, setSessionReports] = useState<SessionReportInfo[]>([]);
+  const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -164,7 +172,7 @@ export default function ParentPortalPage() {
   async function fetchSessionData(stu: Student) {
     const { data: attData } = await db()
       .from('attendance').select('status, session_id').eq('student_id', stu.id);
-    if (!attData?.length) { setSessions([]); setAttendedHours(0); setMakeups([]); return; }
+    if (!attData?.length) { setSessions([]); setAttendedHours(0); setMakeups([]); setSessionReports([]); return; }
 
     const sessionIds = (attData as {status: string; session_id: string}[]).map(a => a.session_id);
     const { data: sessionData } = await db()
@@ -183,10 +191,23 @@ export default function ParentPortalPage() {
       .reduce((sum, a) => sum + (sMap.get(a.session_id)?.duration_hours ?? 0), 0);
     setAttendedHours(hours);
 
-    const { data: mkData } = await db()
-      .from('makeup_classes').select('id, topic, duration_hours')
-      .eq('student_id', stu.id).eq('completed', false);
+    const [{ data: mkData }, { data: reportsData }, { data: fbData }] = await Promise.all([
+      db().from('makeup_classes').select('id, topic, duration_hours').eq('student_id', stu.id).eq('completed', false),
+      db().from('session_reports').select('session_id, video_url, summary').in('session_id', sessionIds),
+      db().from('session_student_feedback').select('session_id, feedback').eq('student_id', stu.id),
+    ]);
     setMakeups((mkData ?? []) as {id: string; topic: string; duration_hours: number}[]);
+
+    const rMap = new Map<string, {video_url: string|null; summary: string|null}>();
+    (reportsData ?? []).forEach((r: {session_id: string; video_url: string|null; summary: string|null}) => rMap.set(r.session_id, r));
+    const fMap = new Map<string, string|null>();
+    (fbData ?? []).forEach((f: {session_id: string; feedback: string|null}) => fMap.set(f.session_id, f.feedback));
+
+    const reports: SessionReportInfo[] = merged
+      .map(s => ({ ...s, video_url: rMap.get(s.id)?.video_url ?? null, summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null }))
+      .filter(r => r.video_url || r.summary || r.feedback);
+    setSessionReports(reports);
+    if (reports.length > 0) setExpandedReports(new Set([reports[0].id]));
   }
 
   function subscribeRealtime(stu: Student) {
@@ -198,6 +219,8 @@ export default function ParentPortalPage() {
         () => fetchItems(stu))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'in_class_assessments', filter: `student_id=eq.${stu.id}` },
         () => fetchRadar(stu.id))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'session_student_feedback', filter: `student_id=eq.${stu.id}` },
+        () => fetchSessionData(stu))
       .subscribe();
   }
 
@@ -322,6 +345,54 @@ export default function ParentPortalPage() {
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-1">🕸️ พัฒนาการทักษะ</h2>
             <RadarChart axes={radarAxes} sessions={radarSessions} emptyLabel="ยังไม่มีข้อมูลทักษะ" />
+          </div>
+        )}
+
+        {/* Session reports */}
+        {sessionReports.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700">📹 บันทึกการเรียน</h2>
+            <div className="space-y-2">
+              {sessionReports.map(sr => {
+                const expanded = expandedReports.has(sr.id);
+                return (
+                  <div key={sr.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                    <button
+                      onClick={() => setExpandedReports(prev => { const n = new Set(prev); n.has(sr.id) ? n.delete(sr.id) : n.add(sr.id); return n; })}
+                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
+                      <span className="text-sm">{sr.status === 'present' ? '✅' : sr.status === 'absent' ? '❌' : '🤒'}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 truncate">{sr.topic}</p>
+                        <p className="text-xs text-gray-400">
+                          {new Date(sr.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                          {' · '}{sr.duration_hours} ชม.
+                        </p>
+                      </div>
+                      {sr.video_url && <span className="text-xs shrink-0">📹</span>}
+                      {sr.feedback && <span className="text-xs shrink-0">💬</span>}
+                      <span className="text-gray-300 shrink-0 text-xs">{expanded ? '▲' : '▼'}</span>
+                    </button>
+                    {expanded && (
+                      <div className="px-3 pb-3 space-y-3 border-t border-gray-50 pt-3">
+                        {sr.video_url && <VideoPlayer url={sr.video_url} />}
+                        {sr.summary && (
+                          <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                            <p className="text-xs font-semibold text-gray-500 mb-1">📝 สรุปเนื้อหา</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{sr.summary}</p>
+                          </div>
+                        )}
+                        {sr.feedback && (
+                          <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-2.5">
+                            <p className="text-xs font-semibold text-green-600 mb-1">💬 Feedback จากครู</p>
+                            <p className="text-sm text-green-800 whitespace-pre-wrap">{sr.feedback}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 

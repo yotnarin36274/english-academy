@@ -463,6 +463,10 @@ export default function AttendancePage() {
                           {' · '}{s.duration_hours} ชม.
                         </p>
                       </button>
+                      <a href={`/teacher/session/${s.id}`}
+                        className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 font-medium transition-colors">
+                        📝
+                      </a>
                       <button onClick={() => startEditSession(s)}
                         className="shrink-0 text-xs px-2.5 py-1.5 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 font-medium transition-colors">
                         ✏️

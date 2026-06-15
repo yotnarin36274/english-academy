@@ -99,6 +99,23 @@ export interface InClassAssessment {
   quick_note: string | null;
 }
 
+export interface SessionReport {
+  id: string;
+  created_at: string;
+  updated_at: string;
+  session_id: string;
+  video_url: string | null;
+  summary: string | null;
+}
+
+export interface SessionStudentFeedback {
+  id: string;
+  created_at: string;
+  session_id: string;
+  student_id: string;
+  feedback: string | null;
+}
+
 export const GROUP_LABELS: Record<string, string> = {
   p46: 'ป.4–ป.6',
   m13: 'ม.1–ม.3',
