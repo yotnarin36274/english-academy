@@ -203,7 +203,6 @@ export default function StudentHomeworkPage() {
     palette: SUBJECT_PALETTE[i % SUBJECT_PALETTE.length],
   }));
   const hasSubjects = subjectGroups.some(g => g.subject !== '');
-  const hasPerSubjectQuotas = !!(student?.subject_quotas && Object.keys(student.subject_quotas).length > 0);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">กำลังโหลด...</div>;
 
@@ -271,19 +270,6 @@ export default function StudentHomeworkPage() {
                     </div>
                   );
                 })}
-                {!hasPerSubjectQuotas && student.session_type === 'fixed' && student.total_course_hours ? (
-                  <div className="pt-3 border-t border-gray-100 space-y-1.5">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-500">รวมทุกวิชา <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></span>
-                      <span className="font-semibold text-blue-600">เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2.5">
-                      <div className="bg-blue-500 h-2.5 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, (attendedHours / student.total_course_hours) * 100)}%` }} />
-                    </div>
-                    <p className="text-xs text-gray-400">{attendedHours}/{student.total_course_hours} ชม.</p>
-                  </div>
-                ) : null}
               </>
             ) : (
               // Flat view (no subjects)
