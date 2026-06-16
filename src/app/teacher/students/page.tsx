@@ -26,6 +26,7 @@ export default function TeacherStudentsPage() {
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState({
     student_code: '', nickname: '', full_name: '', grade: 'ป.4', level: '',
     notes: '', total_course_hours: '', session_type: 'fixed' as 'fixed' | 'hourly',
@@ -39,6 +40,14 @@ export default function TeacherStudentsPage() {
   }
 
   function setField(k: string, v: string) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  async function deleteStudent(stu: Student) {
+    if (!window.confirm(`ลบ "${stu.nickname}" ออกจากระบบ?\n(ข้อมูลจะถูกซ่อน แต่ยังเก็บไว้ในฐานข้อมูล)`)) return;
+    setDeletingId(stu.id);
+    await db().from('students').update({ is_active: false }).eq('id', stu.id);
+    setDeletingId(null);
+    load();
+  }
 
   async function save() {
     if (!form.student_code.trim() || !form.nickname.trim()) return;
@@ -167,28 +176,36 @@ export default function TeacherStudentsPage() {
         {/* Student list */}
         <div className="space-y-2">
           {filtered.map(stu => (
-            <button key={stu.id} onClick={() => router.push(`/teacher/students/${stu.id}`)}
-              className="w-full bg-white rounded-2xl shadow-sm p-4 text-left border border-gray-100 hover:border-blue-200 transition-colors">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
-                  {stu.nickname[0]}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-gray-800">{stu.nickname}</p>
-                    <span className="text-xs text-gray-500 font-mono">{stu.student_code}</span>
-                    {!stu.is_active && <span className="text-xs text-red-400">(ไม่ active)</span>}
-                    {stu.level && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLOR[stu.level] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {stu.level}
-                      </span>
-                    )}
+            <div key={stu.id} className="flex items-center gap-2">
+              <button onClick={() => router.push(`/teacher/students/${stu.id}`)}
+                className="flex-1 bg-white rounded-2xl shadow-sm p-4 text-left border border-gray-100 hover:border-blue-200 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center shrink-0">
+                    {stu.nickname[0]}
                   </div>
-                  <p className="text-sm text-gray-500">{stu.full_name ? `${stu.full_name} · ` : ''}{stu.grade} · {GROUP_LABELS[stu.group_key]}</p>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-gray-800">{stu.nickname}</p>
+                      <span className="text-xs text-gray-500 font-mono">{stu.student_code}</span>
+                      {!stu.is_active && <span className="text-xs text-red-400">(ไม่ active)</span>}
+                      {stu.level && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LEVEL_COLOR[stu.level] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {stu.level}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500">{stu.full_name ? `${stu.full_name} · ` : ''}{stu.grade} · {GROUP_LABELS[stu.group_key]}</p>
+                  </div>
+                  <span className="text-gray-400 text-sm shrink-0">→</span>
                 </div>
-                <span className="text-gray-400 text-sm shrink-0">→</span>
-              </div>
-            </button>
+              </button>
+              <button
+                onClick={() => deleteStudent(stu)}
+                disabled={deletingId === stu.id}
+                className="shrink-0 w-10 h-10 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 transition-colors disabled:opacity-40">
+                {deletingId === stu.id ? '...' : '🗑️'}
+              </button>
+            </div>
           ))}
         </div>
 
