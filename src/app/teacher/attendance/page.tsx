@@ -75,17 +75,22 @@ export default function AttendancePage() {
     const attMap = new Map<string, Attendance>();
     (attData ?? []).forEach((a: Attendance) => attMap.set(a.student_id, a));
 
-    // Compute total attended hours per student across all sessions
+    // Compute attended hours per student for THIS SUBJECT only
+    const sessionSubject = session.subject ?? '';
     const studentIds = students.map(s => s.id);
     const { data: allPresent } = await db()
       .from('attendance').select('student_id, session_id')
       .in('student_id', studentIds).eq('status', 'present');
     const presentSessionIds = [...new Set((allPresent ?? []).map((a: {session_id: string}) => a.session_id))];
-    let sessionHoursMap = new Map<string, number>();
+    const sessionHoursMap = new Map<string, number>();
     if (presentSessionIds.length > 0) {
       const { data: sData } = await db()
-        .from('class_sessions').select('id, duration_hours').in('id', presentSessionIds);
-      (sData ?? []).forEach((s: {id: string; duration_hours: number}) => sessionHoursMap.set(s.id, s.duration_hours));
+        .from('class_sessions').select('id, duration_hours, subject').in('id', presentSessionIds);
+      (sData ?? []).forEach((s: {id: string; duration_hours: number; subject: string | null}) => {
+        if ((s.subject ?? '') === sessionSubject) {
+          sessionHoursMap.set(s.id, s.duration_hours);
+        }
+      });
     }
     const attendedMap = new Map<string, number>();
     (allPresent ?? []).forEach((a: {student_id: string; session_id: string}) => {
@@ -383,13 +388,16 @@ export default function AttendancePage() {
                         {stu.full_name && <span className="text-xs text-gray-400 ml-1">({stu.full_name})</span>}
                       </p>
                       <p className="text-xs text-gray-400">{stu.grade}
-                        {stu.session_type === 'fixed' && stu.total_course_hours ? (
-                          <span className="ml-1 font-medium text-blue-500">
-                            · เรียน {stu.attendedHours ?? 0} / {stu.total_course_hours} ชม.
-                          </span>
-                        ) : stu.attendedHours ? (
-                          <span className="ml-1">· เรียน {stu.attendedHours} ชม.</span>
-                        ) : null}
+                        {(() => {
+                          const subjectQuota = selectedSession?.subject ? stu.subject_quotas?.[selectedSession.subject] : null;
+                          const quota = subjectQuota ?? (stu.session_type === 'fixed' && !selectedSession?.subject ? stu.total_course_hours : null);
+                          const hours = stu.attendedHours ?? 0;
+                          return quota ? (
+                            <span className="ml-1 font-medium text-blue-500">· เรียน {hours} / {quota} ชม.</span>
+                          ) : hours > 0 ? (
+                            <span className="ml-1 font-medium text-blue-500">· เรียน {hours} ชม.</span>
+                          ) : null;
+                        })()}
                       </p>
                     </div>
 
