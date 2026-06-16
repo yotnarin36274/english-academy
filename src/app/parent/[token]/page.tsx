@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { RadarChart } from '@/components/RadarChart';
 import type { RadarAxis } from '@/components/RadarChart';
-import type { Student, Assignment, HomeworkSubmission, FeedbackRow } from '@/lib/db';
+import type { Student, Assignment, HomeworkSubmission, FeedbackRow, Course } from '@/lib/db';
 import { VideoPlayer } from '@/components/VideoPlayer';
 
 interface ProgressItem {
@@ -20,10 +20,10 @@ interface SessionReportInfo {
 }
 
 const SUBJECT_PALETTE = [
-  { badge: 'bg-blue-100 text-blue-700', bar: 'bg-blue-500' },
-  { badge: 'bg-green-100 text-green-700', bar: 'bg-green-500' },
-  { badge: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500' },
-  { badge: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500' },
+  { badge: 'bg-blue-100 text-blue-700', bar: 'bg-blue-500', remaining: 'text-blue-600' },
+  { badge: 'bg-green-100 text-green-700', bar: 'bg-green-500', remaining: 'text-green-600' },
+  { badge: 'bg-purple-100 text-purple-700', bar: 'bg-purple-500', remaining: 'text-purple-600' },
+  { badge: 'bg-orange-100 text-orange-700', bar: 'bg-orange-500', remaining: 'text-orange-600' },
 ];
 
 function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' {
@@ -84,7 +84,6 @@ function ScoreBar({ score, max }: { score: number; max: number }) {
   );
 }
 
-
 export default function ParentPortalPage() {
   const { token } = useParams<{ token: string }>();
   const [student, setStudent] = useState<Student | null>(null);
@@ -93,7 +92,8 @@ export default function ParentPortalPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [radarAxes, setRadarAxes] = useState<RadarAxis[]>([]);
   const [radarSessions, setRadarSessions] = useState(0);
-  const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string}>>([]);
+  const [sessions, setSessions] = useState<Array<{id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string; course_id: string | null}>>([]);
+  const [courseMap, setCourseMap] = useState<Map<string, Course>>(new Map());
   const [makeups, setMakeups] = useState<Array<{id: string; topic: string; duration_hours: number}>>([]);
   const [attendedHours, setAttendedHours] = useState(0);
   const [sessionReports, setSessionReports] = useState<SessionReportInfo[]>([]);
@@ -179,24 +179,33 @@ export default function ParentPortalPage() {
   async function fetchSessionData(stu: Student) {
     const { data: attData } = await db()
       .from('attendance').select('status, session_id').eq('student_id', stu.id);
-    if (!attData?.length) { setSessions([]); setAttendedHours(0); setMakeups([]); setSessionReports([]); return; }
+    if (!attData?.length) { setSessions([]); setAttendedHours(0); setMakeups([]); setSessionReports([]); setCourseMap(new Map()); return; }
 
     const sessionIds = (attData as {status: string; session_id: string}[]).map(a => a.session_id);
     const { data: sessionData } = await db()
-      .from('class_sessions').select('id, session_date, topic, subject, duration_hours')
+      .from('class_sessions').select('id, session_date, topic, subject, duration_hours, course_id')
       .in('id', sessionIds).order('session_date', { ascending: false });
 
-    const sMap = new Map((sessionData ?? []).map((s: {id: string; session_date: string; topic: string; subject: string; duration_hours: number}) => [s.id, s]));
+    const sMap = new Map((sessionData ?? []).map((s: {id: string; session_date: string; topic: string; subject: string; duration_hours: number; course_id: string | null}) => [s.id, s]));
     const merged = (attData as {status: string; session_id: string}[])
-      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, subject: s.subject ?? '', status: a.status } : null; })
-      .filter(Boolean) as {id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string}[];
+      .map(a => { const s = sMap.get(a.session_id); return s ? { ...s, subject: s.subject ?? '', course_id: s.course_id ?? null, status: a.status } : null; })
+      .filter(Boolean) as {id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string; course_id: string | null}[];
     merged.sort((a, b) => b.session_date.localeCompare(a.session_date));
     setSessions(merged);
 
-    const hours = (attData as {status: string; session_id: string}[])
-      .filter(a => a.status === 'present')
-      .reduce((sum, a) => sum + (sMap.get(a.session_id)?.duration_hours ?? 0), 0);
+    const hours = merged.filter(s => s.status === 'present').reduce((sum, s) => sum + s.duration_hours, 0);
     setAttendedHours(hours);
+
+    // Fetch courses
+    const courseIds = [...new Set(merged.filter(s => s.course_id).map(s => s.course_id as string))];
+    if (courseIds.length > 0) {
+      const { data: cData } = await db().from('courses').select('*').in('id', courseIds);
+      const cMap = new Map<string, Course>();
+      (cData ?? []).forEach((c: Course) => cMap.set(c.id, c));
+      setCourseMap(cMap);
+    } else {
+      setCourseMap(new Map());
+    }
 
     const [{ data: mkData }, { data: reportsData }, { data: fbData }] = await Promise.all([
       db().from('makeup_classes').select('id, topic, duration_hours').eq('student_id', stu.id).eq('completed', false),
@@ -236,20 +245,60 @@ export default function ParentPortalPage() {
 
   const reviewed = items.filter(i => i.feedback?.score != null);
 
-  // Subject grouping
-  const subjectGroupMap = new Map<string, typeof sessions>();
+  // Build course groups
+  const courseGroups: Array<{
+    key: string;
+    course: Course | null;
+    label: string;
+    subject: string;
+    sessions: typeof sessions;
+    attendedHours: number;
+    palette: typeof SUBJECT_PALETTE[0];
+    quota: number;
+  }> = [];
+  const seenCourseIds = new Set<string>();
   for (const s of sessions) {
-    const key = s.subject ?? '';
-    if (!subjectGroupMap.has(key)) subjectGroupMap.set(key, []);
-    subjectGroupMap.get(key)!.push(s);
+    if (s.course_id && !seenCourseIds.has(s.course_id)) {
+      seenCourseIds.add(s.course_id);
+      const courseSessions = sessions.filter(x => x.course_id === s.course_id);
+      const c = courseMap.get(s.course_id);
+      courseGroups.push({
+        key: `course_${s.course_id}`,
+        course: c ?? null,
+        label: c?.name ?? 'คอร์ส',
+        subject: c?.subject ?? s.subject ?? '',
+        sessions: courseSessions,
+        attendedHours: courseSessions.filter(x => x.status === 'present').reduce((sum, x) => sum + x.duration_hours, 0),
+        palette: SUBJECT_PALETTE[courseGroups.length % SUBJECT_PALETTE.length],
+        quota: c?.total_hours ?? 0,
+      });
+    }
   }
-  const subjectGroups = [...subjectGroupMap.entries()].map(([subject, slist], i) => ({
-    subject,
-    sessions: slist,
-    attendedHours: slist.filter(s => s.status === 'present').reduce((sum, s) => sum + s.duration_hours, 0),
-    palette: SUBJECT_PALETTE[i % SUBJECT_PALETTE.length],
-  }));
-  const hasSubjects = subjectGroups.some(g => g.subject !== '');
+  // Legacy sessions (no course_id)
+  const legacySessions = sessions.filter(s => !s.course_id);
+  const legacyBySubject = new Map<string, typeof sessions>();
+  for (const s of legacySessions) {
+    const key = s.subject || '__none';
+    if (!legacyBySubject.has(key)) legacyBySubject.set(key, []);
+    legacyBySubject.get(key)!.push(s);
+  }
+  for (const [key, slist] of legacyBySubject.entries()) {
+    const subject = key === '__none' ? '' : key;
+    courseGroups.push({
+      key: `subject_${key}`,
+      course: null,
+      label: subject || 'อื่นๆ',
+      subject,
+      sessions: slist,
+      attendedHours: slist.filter(x => x.status === 'present').reduce((sum, x) => sum + x.duration_hours, 0),
+      palette: SUBJECT_PALETTE[courseGroups.length % SUBJECT_PALETTE.length],
+      quota: student?.subject_quotas?.[subject] ?? 0,
+    });
+  }
+
+  // Session report lookup
+  const sessionReportBySid = new Map<string, SessionReportInfo>();
+  sessionReports.forEach(sr => sessionReportBySid.set(sr.id, sr));
 
   const avgScore = reviewed.length
     ? Math.round(reviewed.reduce((s, i) => s + (i.feedback!.score! / i.feedback!.max_score) * 100, 0) / reviewed.length)
@@ -277,7 +326,6 @@ export default function ParentPortalPage() {
           <h1 className="text-xl font-bold mt-1">น้อง{student.nickname}</h1>
           <p className="text-green-100 text-sm">{student.full_name ? `${student.full_name} · ` : ''}{student.grade}</p>
 
-          {/* Summary pills */}
           <div className="flex gap-3 mt-4 flex-wrap">
             <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center">
               <p className="text-xs text-green-100">งานทั้งหมด</p>
@@ -297,87 +345,72 @@ export default function ParentPortalPage() {
                 <p className="text-xl font-bold">{avgScore}%</p>
               </div>
             )}
-            {student.session_type === 'fixed' && student.total_course_hours ? (
-              <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center">
-                <p className="text-xs text-green-100">ชม.เหลือ</p>
-                <p className="text-xl font-bold">{Math.max(0, student.total_course_hours - attendedHours)}</p>
-              </div>
-            ) : attendedHours > 0 ? (
+            {attendedHours > 0 && (
               <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center">
                 <p className="text-xs text-green-100">ชม.เรียน</p>
                 <p className="text-xl font-bold">{attendedHours}</p>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </div>
 
       <div className="max-w-lg mx-auto px-4 mt-5 space-y-5">
-        {/* Session history */}
-        {(student.total_course_hours || sessions.length > 0 || makeups.length > 0) && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-4">
-            <h2 className="text-sm font-semibold text-gray-700">📅 ชั่วโมงเรียน</h2>
 
-            {hasSubjects ? (
-              <>
-                {subjectGroups.map((group) => {
-                  const quota = student.subject_quotas?.[group.subject];
-                  return (
-                    <div key={group.subject} className="space-y-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${group.palette.badge}`}>
-                          {group.subject || 'อื่นๆ'}
-                        </span>
-                        <span className="text-sm font-semibold text-gray-700">{group.attendedHours} ชม.</span>
-                        {quota ? (
-                          <span className="text-xs text-gray-400">/ {quota} ชม. · เหลือ {Math.max(0, quota - group.attendedHours)} ชม.</span>
-                        ) : null}
-                      </div>
-                      {quota ? (
-                        <div className="w-full bg-gray-100 rounded-full h-2">
-                          <div className={`${group.palette.bar} h-2 rounded-full transition-all`}
-                            style={{ width: `${Math.min(100, (group.attendedHours / quota) * 100)}%` }} />
-                        </div>
-                      ) : null}
-                      <div className="space-y-1">
-                        {group.sessions.slice(0, 5).map(s => (
-                          <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
-                            <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
-                            <span className="text-gray-400 shrink-0 w-14">
-                              {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                            </span>
-                            <span className="text-gray-700 flex-1 truncate">{s.topic}</span>
-                            <span className="text-gray-400 shrink-0">{s.duration_hours} ชม.</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </>
-            ) : (
-              <>
-                {student.session_type === 'fixed' && student.total_course_hours ? (
-                  <div>
-                    <div className="flex justify-between text-sm mb-1.5">
-                      <span className="text-gray-500">เรียนแล้ว <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></span>
-                      <span className="font-semibold text-green-700">เหลือ {Math.max(0, student.total_course_hours - attendedHours)} ชม.</span>
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2.5">
-                      <div className="bg-green-500 h-2.5 rounded-full transition-all"
-                        style={{ width: `${Math.min(100, (attendedHours / student.total_course_hours) * 100)}%` }} />
-                    </div>
-                    <p className="text-xs text-gray-400 mt-1">{attendedHours}/{student.total_course_hours} ชม.</p>
+        {/* Course + Session history */}
+        {(sessions.length > 0 || makeups.length > 0) && (
+          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-5">
+            <h2 className="text-sm font-semibold text-gray-700">📅 คอร์สและชั่วโมงเรียน</h2>
+
+            {courseGroups.map((group, gi) => {
+              const groupReports = group.sessions
+                .map(s => sessionReportBySid.get(s.id))
+                .filter((r): r is SessionReportInfo => !!r);
+              const pct = group.quota > 0 ? Math.min(100, (group.attendedHours / group.quota) * 100) : 0;
+
+              return (
+                <div key={group.key} className={gi > 0 ? 'border-t border-gray-100 pt-4 space-y-2' : 'space-y-2'}>
+                  {/* Cover image */}
+                  {group.course?.cover_image_url && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={group.course.cover_image_url} alt="" className="w-full h-28 object-cover rounded-xl" />
+                  )}
+
+                  {/* Course title row */}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {group.subject && (
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${group.palette.badge}`}>{group.subject}</span>
+                    )}
+                    {group.course && (
+                      <span className="text-sm font-bold text-gray-800">{group.course.name}</span>
+                    )}
+                    <span className="text-xs text-gray-400 ml-auto">{group.attendedHours} ชม.</span>
                   </div>
-                ) : attendedHours > 0 ? (
-                  <p className="text-sm text-gray-600">รวมเรียน <span className="font-semibold text-gray-800">{attendedHours} ชม.</span></p>
-                ) : null}
-                {sessions.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold text-gray-500 mb-1.5">📋 ประวัติการเรียน</p>
+
+                  {/* Description */}
+                  {group.course?.description && (
+                    <p className="text-xs text-gray-500">{group.course.description}</p>
+                  )}
+
+                  {/* Progress bar */}
+                  {group.quota > 0 ? (
                     <div className="space-y-1">
-                      {sessions.slice(0, 6).map(s => (
-                        <div key={s.id} className="flex items-center gap-2 text-xs py-1 border-b border-gray-50 last:border-0">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">เรียนแล้ว <span className="font-semibold text-gray-800">{group.attendedHours} ชม.</span></span>
+                        <span className={`font-semibold ${group.palette.remaining}`}>เหลือ {Math.max(0, group.quota - group.attendedHours)} ชม.</span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className={`${group.palette.bar} h-2 rounded-full transition-all`} style={{ width: `${pct}%` }} />
+                      </div>
+                      <p className="text-xs text-gray-400">{group.attendedHours}/{group.quota} ชม.</p>
+                    </div>
+                  ) : null}
+
+                  {/* Session list */}
+                  {group.sessions.length > 0 && (
+                    <div className="space-y-0.5">
+                      {group.sessions.slice(0, 5).map(s => (
+                        <div key={s.id} className="flex items-center gap-2 text-xs py-1.5 border-b border-gray-50 last:border-0">
                           <span>{s.status === 'present' ? '✅' : s.status === 'absent' ? '❌' : '🤒'}</span>
                           <span className="text-gray-400 shrink-0 w-14">
                             {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
@@ -387,13 +420,66 @@ export default function ParentPortalPage() {
                         </div>
                       ))}
                     </div>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+
+                  {/* Session reports (videos) for this course */}
+                  {groupReports.length > 0 && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-semibold text-gray-500">📹 บันทึกการเรียน ({groupReports.length})</p>
+                      {groupReports.map(sr => {
+                        const exp = expandedReports.has(sr.id);
+                        return (
+                          <div key={sr.id} className="border border-gray-100 rounded-xl overflow-hidden">
+                            <button
+                              onClick={() => setExpandedReports(prev => { const n = new Set(prev); n.has(sr.id) ? n.delete(sr.id) : n.add(sr.id); return n; })}
+                              className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
+                              <span className="text-sm">{sr.status === 'present' ? '✅' : sr.status === 'absent' ? '❌' : '🤒'}</span>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-800 truncate">{sr.topic}</p>
+                                <p className="text-xs text-gray-400">
+                                  {new Date(sr.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
+                                  {' · '}{sr.duration_hours} ชม.
+                                </p>
+                              </div>
+                              {sr.video_urls.length > 0 && <span className="text-xs shrink-0">📹{sr.video_urls.length > 1 ? ` ${sr.video_urls.length}` : ''}</span>}
+                              {sr.feedback && <span className="text-xs shrink-0">💬</span>}
+                              <span className="text-gray-300 shrink-0 text-xs">{exp ? '▲' : '▼'}</span>
+                            </button>
+                            {exp && (
+                              <div className="px-3 pb-3 space-y-3 border-t border-gray-50 pt-3">
+                                {sr.video_urls.map((url, vi) => (
+                                  <div key={vi}>
+                                    {sr.video_urls.length > 1 && (
+                                      <p className="text-xs font-semibold text-gray-500 mb-1">วิดีโอที่ {vi + 1}</p>
+                                    )}
+                                    <VideoPlayer url={url} />
+                                  </div>
+                                ))}
+                                {sr.summary && (
+                                  <div className="bg-gray-50 rounded-xl px-3 py-2.5">
+                                    <p className="text-xs font-semibold text-gray-500 mb-1">📝 สรุปเนื้อหา</p>
+                                    <p className="text-sm text-gray-700 whitespace-pre-wrap">{sr.summary}</p>
+                                  </div>
+                                )}
+                                {sr.feedback && (
+                                  <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-2.5">
+                                    <p className="text-xs font-semibold text-green-600 mb-1">💬 Feedback จากครู</p>
+                                    <p className="text-sm text-green-800 whitespace-pre-wrap">{sr.feedback}</p>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             {makeups.length > 0 && (
-              <div>
+              <div className="border-t border-gray-100 pt-3">
                 <p className="text-xs font-semibold text-orange-600 mb-1.5">🔁 Make-up คงค้าง ({makeups.length})</p>
                 {makeups.map(m => (
                   <div key={m.id} className="text-xs bg-orange-50 border border-orange-100 rounded-lg px-3 py-1.5 text-orange-700 mb-1">
@@ -410,64 +496,6 @@ export default function ParentPortalPage() {
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-1">🕸️ พัฒนาการทักษะ</h2>
             <RadarChart axes={radarAxes} sessions={radarSessions} emptyLabel="ยังไม่มีข้อมูลทักษะ" />
-          </div>
-        )}
-
-        {/* Session reports */}
-        {sessionReports.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-            <h2 className="text-sm font-semibold text-gray-700">📹 บันทึกการเรียน</h2>
-            <div className="space-y-2">
-              {sessionReports.map(sr => {
-                const expanded = expandedReports.has(sr.id);
-                return (
-                  <div key={sr.id} className="border border-gray-100 rounded-xl overflow-hidden">
-                    <button
-                      onClick={() => setExpandedReports(prev => { const n = new Set(prev); n.has(sr.id) ? n.delete(sr.id) : n.add(sr.id); return n; })}
-                      className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors">
-                      <span className="text-sm">{sr.status === 'present' ? '✅' : sr.status === 'absent' ? '❌' : '🤒'}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-800 truncate">
-                          {sr.subject && <span className="text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium mr-1">{sr.subject}</span>}
-                          {sr.topic}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {new Date(sr.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}
-                          {' · '}{sr.duration_hours} ชม.
-                        </p>
-                      </div>
-                      {sr.video_urls.length > 0 && <span className="text-xs shrink-0">📹{sr.video_urls.length > 1 ? ` ${sr.video_urls.length}` : ''}</span>}
-                      {sr.feedback && <span className="text-xs shrink-0">💬</span>}
-                      <span className="text-gray-300 shrink-0 text-xs">{expanded ? '▲' : '▼'}</span>
-                    </button>
-                    {expanded && (
-                      <div className="px-3 pb-3 space-y-3 border-t border-gray-50 pt-3">
-                        {sr.video_urls.map((url, vi) => (
-                          <div key={vi}>
-                            {sr.video_urls.length > 1 && (
-                              <p className="text-xs font-semibold text-gray-500 mb-1">วิดีโอที่ {vi + 1}</p>
-                            )}
-                            <VideoPlayer url={url} />
-                          </div>
-                        ))}
-                        {sr.summary && (
-                          <div className="bg-gray-50 rounded-xl px-3 py-2.5">
-                            <p className="text-xs font-semibold text-gray-500 mb-1">📝 สรุปเนื้อหา</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-wrap">{sr.summary}</p>
-                          </div>
-                        )}
-                        {sr.feedback && (
-                          <div className="bg-green-50 border border-green-100 rounded-xl px-3 py-2.5">
-                            <p className="text-xs font-semibold text-green-600 mb-1">💬 Feedback จากครู</p>
-                            <p className="text-sm text-green-800 whitespace-pre-wrap">{sr.feedback}</p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
         )}
 
@@ -501,8 +529,6 @@ export default function ParentPortalPage() {
                       <p className="text-xs text-gray-400 mt-1">
                         ส่งเมื่อ {new Date(sub.submitted_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </p>
-
-                      {/* Submitted files */}
                       {sub.image_urls?.length > 0 && (
                         <div className="mt-3">
                           <p className="text-xs font-medium text-gray-500 mb-2">📎 ไฟล์ที่ส่ง</p>
@@ -513,7 +539,6 @@ export default function ParentPortalPage() {
                           </div>
                         </div>
                       )}
-
                       {sub.note && (
                         <p className="text-sm text-gray-500 bg-blue-50 rounded-xl p-3 mt-2 text-xs">
                           📝 หมายเหตุ: {sub.note}

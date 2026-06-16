@@ -16,6 +16,18 @@ export interface Student {
   subject_quotas: Record<string, number> | null;
 }
 
+export interface Course {
+  id: string;
+  created_at: string;
+  name: string;
+  subject: string;
+  description: string | null;
+  cover_image_url: string | null;
+  total_hours: number;
+  student_ids: string[];
+  is_active: boolean;
+}
+
 export interface ClassSession {
   id: string;
   created_at: string;
@@ -27,6 +39,7 @@ export interface ClassSession {
   student_ids: string[];
   week_number: number | null;
   notes: string | null;
+  course_id: string | null;
 }
 
 export interface Attendance {
