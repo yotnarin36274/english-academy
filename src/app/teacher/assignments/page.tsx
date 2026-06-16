@@ -468,7 +468,7 @@ export default function TeacherAssignmentsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
                   <p className="font-semibold text-gray-800">{a.title}</p>
-                  {a.description && <p className="text-sm text-gray-500 mt-0.5">{a.description}</p>}
+                  {a.description && <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-wrap">{a.description}</p>}
                   <div className="flex flex-wrap gap-1.5 mt-2">
                     {/* Session tag */}
                     {sessInfo && (

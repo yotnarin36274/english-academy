@@ -421,7 +421,7 @@ export default function StudentHomeworkPage() {
                         </p>
                       )}
                       <p className="font-semibold text-gray-800">{a.title}</p>
-                      {a.description && <p className="text-sm text-gray-500 mt-0.5">{a.description}</p>}
+                      {a.description && <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-wrap">{a.description}</p>}
                       {a.due_date && (
                         <p className="text-xs text-red-500 mt-1">
                           ครบกำหนด: {new Date(a.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}
