@@ -18,6 +18,15 @@ interface SessionReportInfo {
   video_urls: string[]; summary: string | null; feedback: string | null;
 }
 
+function linkify(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-600 underline break-all">{part}</a>
+      : part
+  );
+}
+
 const SUBJECT_PALETTE = [
   { badge: 'bg-blue-100 text-blue-700', bar: 'bg-blue-500', remaining: 'text-blue-600' },
   { badge: 'bg-green-100 text-green-700', bar: 'bg-green-500', remaining: 'text-green-600' },
@@ -421,7 +430,7 @@ export default function StudentHomeworkPage() {
                         </p>
                       )}
                       <p className="font-semibold text-gray-800">{a.title}</p>
-                      {a.description && <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-wrap">{a.description}</p>}
+                      {a.description && <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-wrap">{linkify(a.description)}</p>}
                       {a.due_date && (
                         <p className="text-xs text-red-500 mt-1">
                           ครบกำหนด: {new Date(a.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}

@@ -71,6 +71,15 @@ function ParentFileItem({ url }: { url: string }) {
   );
 }
 
+function linkify(text: string) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return parts.map((part, i) =>
+    /^https?:\/\//.test(part)
+      ? <a key={i} href={part} target="_blank" rel="noreferrer" className="text-blue-600 underline break-all">{part}</a>
+      : part
+  );
+}
+
 function ScoreBar({ score, max }: { score: number; max: number }) {
   const pct = Math.round((score / max) * 100);
   const color = pct >= 80 ? '#1D9E75' : pct >= 60 ? '#EF9F27' : '#ef4444';
