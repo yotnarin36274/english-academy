@@ -2,16 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { db } from '@/lib/supabase';
-import type { Assignment, Student } from '@/lib/db';
+import type { Assignment, Student, Course, ClassSession } from '@/lib/db';
 
 const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
 
-type TargetMode = 'groups' | 'students';
+type TargetMode = 'groups' | 'students' | 'session';
 
 export default function TeacherAssignmentsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [allStudents, setAllStudents] = useState<Student[]>([]);
+  const [allCourses, setAllCourses] = useState<Course[]>([]);
+  const [courseSessions, setCourseSessions] = useState<ClassSession[]>([]);
   const [showForm, setShowForm] = useState(false);
+
+  // Form fields
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -20,20 +24,45 @@ export default function TeacherAssignmentsPage() {
   const [targetGroups, setTargetGroups] = useState<string[]>([]);
   const [targetStudentIds, setTargetStudentIds] = useState<string[]>([]);
   const [studentSearch, setStudentSearch] = useState('');
+  // Session mode
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [selectedSessionId, setSelectedSessionId] = useState('');
+  const [sessionStudentIds, setSessionStudentIds] = useState<string[]>([]);
+
   const [saving, setSaving] = useState(false);
   const [notifyStatus, setNotifyStatus] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ title: '', description: '', dueDate: '', maxScore: '100' });
   const [editSaving, setEditSaving] = useState(false);
 
+  // For display: session/course name lookup
+  const [sessionMap, setSessionMap] = useState<Map<string, { topic: string; subject: string }>>(new Map());
+  const [courseNameMap, setCourseNameMap] = useState<Map<string, string>>(new Map());
+
   useEffect(() => {
     load();
     loadStudents();
+    loadCourses();
   }, []);
 
   async function load() {
     const { data } = await db().from('assignments').select('*').order('created_at', { ascending: false });
-    setAssignments(data ?? []);
+    const list = (data ?? []) as Assignment[];
+    setAssignments(list);
+
+    // Build session/course lookup maps for display
+    const sIds = [...new Set(list.map(a => a.session_id).filter(Boolean))] as string[];
+    const cIds = [...new Set(list.map(a => a.course_id).filter(Boolean))] as string[];
+    const [sRes, cRes] = await Promise.all([
+      sIds.length ? db().from('class_sessions').select('id, topic, subject').in('id', sIds) : { data: [] },
+      cIds.length ? db().from('courses').select('id, name').in('id', cIds) : { data: [] },
+    ]);
+    const sm = new Map<string, { topic: string; subject: string }>();
+    (sRes.data ?? []).forEach((s: { id: string; topic: string; subject: string }) => sm.set(s.id, s));
+    setSessionMap(sm);
+    const cm = new Map<string, string>();
+    (cRes.data ?? []).forEach((c: { id: string; name: string }) => cm.set(c.id, c.name));
+    setCourseNameMap(cm);
   }
 
   async function loadStudents() {
@@ -41,22 +70,38 @@ export default function TeacherAssignmentsPage() {
     setAllStudents(data ?? []);
   }
 
+  async function loadCourses() {
+    const { data } = await db().from('courses').select('*').eq('is_active', true).order('created_at', { ascending: false });
+    setAllCourses((data ?? []) as Course[]);
+  }
+
+  async function onCourseChange(courseId: string) {
+    setSelectedCourseId(courseId);
+    setSelectedSessionId('');
+    setSessionStudentIds([]);
+    if (!courseId) { setCourseSessions([]); return; }
+    const { data } = await db()
+      .from('class_sessions').select('*').eq('course_id', courseId)
+      .order('session_date', { ascending: false });
+    setCourseSessions((data ?? []) as ClassSession[]);
+  }
+
+  function onSessionChange(sessionId: string) {
+    setSelectedSessionId(sessionId);
+    if (!sessionId) { setSessionStudentIds([]); return; }
+    const sess = courseSessions.find(s => s.id === sessionId);
+    // Pre-select all students in this session
+    setSessionStudentIds(sess?.student_ids ?? []);
+  }
+
   function toggleGroup(g: string) {
     setTargetGroups(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
   }
-
   function toggleStudent(id: string) {
     setTargetStudentIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
-
-  function selectAllVisible() {
-    const visibleIds = filteredStudents.map(s => s.id);
-    const allSelected = visibleIds.every(id => targetStudentIds.includes(id));
-    if (allSelected) {
-      setTargetStudentIds(prev => prev.filter(id => !visibleIds.includes(id)));
-    } else {
-      setTargetStudentIds(prev => [...new Set([...prev, ...visibleIds])]);
-    }
+  function toggleSessionStudent(id: string) {
+    setSessionStudentIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   }
 
   const filteredStudents = allStudents.filter(s => {
@@ -64,47 +109,66 @@ export default function TeacherAssignmentsPage() {
     const q = studentSearch.toLowerCase();
     return s.nickname.toLowerCase().includes(q)
       || (s.full_name ?? '').toLowerCase().includes(q)
-      || s.student_code.toLowerCase().includes(q)
-      || s.grade.toLowerCase().includes(q);
+      || s.student_code.toLowerCase().includes(q);
   });
+
+  // Students in the selected session (from allStudents for name lookup)
+  const selectedSession = courseSessions.find(s => s.id === selectedSessionId);
+  const sessionStudentObjects = allStudents.filter(s => selectedSession?.student_ids.includes(s.id));
+
+  function resetForm() {
+    setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100');
+    setTargetMode('groups'); setTargetGroups([]); setTargetStudentIds([]); setStudentSearch('');
+    setSelectedCourseId(''); setSelectedSessionId(''); setSessionStudentIds([]);
+    setCourseSessions([]);
+  }
 
   async function createAssignment() {
     if (!title.trim()) return;
+    if (targetMode === 'students' && targetStudentIds.length === 0) return;
+    if (targetMode === 'session' && (!selectedSessionId || sessionStudentIds.length === 0)) return;
     setSaving(true);
     setNotifyStatus('');
 
-    const { data: asg, error } = await db().from('assignments').insert({
+    const payload: Record<string, unknown> = {
       title: title.trim(),
       description: description.trim() || null,
       due_date: dueDate || null,
-      target_groups: targetMode === 'groups' ? targetGroups : [],
-      target_student_ids: targetMode === 'students' ? targetStudentIds : [],
       max_score: parseInt(maxScore) || 100,
       is_active: true,
-    }).select().single();
+      session_id: null,
+      course_id: null,
+      target_groups: [],
+      target_student_ids: [],
+    };
 
-    if (error || !asg) {
-      setNotifyStatus(`❌ เกิดข้อผิดพลาด: ${error?.message ?? 'ไม่สามารถสร้างงานได้'}`);
+    if (targetMode === 'groups') {
+      payload.target_groups = targetGroups;
+    } else if (targetMode === 'students') {
+      payload.target_student_ids = targetStudentIds;
+    } else {
+      // session mode
+      payload.session_id = selectedSessionId;
+      payload.course_id = selectedCourseId || null;
+      payload.target_student_ids = sessionStudentIds;
+    }
+
+    const { error } = await db().from('assignments').insert(payload);
+    if (error) {
+      setNotifyStatus(`❌ เกิดข้อผิดพลาด: ${error.message}`);
       setSaving(false);
       return;
     }
 
     setNotifyStatus('✅ สร้างงานเรียบร้อย');
-    setTitle(''); setDescription(''); setDueDate(''); setMaxScore('100');
-    setTargetMode('groups'); setTargetGroups([]); setTargetStudentIds([]);
-    setStudentSearch('');
+    resetForm();
     setShowForm(false);
     setSaving(false);
     load();
   }
 
   function startEdit(a: Assignment) {
-    setEditForm({
-      title: a.title,
-      description: a.description ?? '',
-      dueDate: a.due_date ?? '',
-      maxScore: a.max_score.toString(),
-    });
+    setEditForm({ title: a.title, description: a.description ?? '', dueDate: a.due_date ?? '', maxScore: a.max_score.toString() });
     setEditingId(a.id);
   }
 
@@ -134,6 +198,10 @@ export default function TeacherAssignmentsPage() {
     load();
   }
 
+  const canCreate = title.trim() && !saving
+    && (targetMode === 'groups' || (targetMode === 'students' && targetStudentIds.length > 0)
+      || (targetMode === 'session' && selectedSessionId && sessionStudentIds.length > 0));
+
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
@@ -142,7 +210,7 @@ export default function TeacherAssignmentsPage() {
             <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">📝 จัดการการบ้าน</h1>
           </div>
-          <button onClick={() => setShowForm(!showForm)}
+          <button onClick={() => { setShowForm(!showForm); if (showForm) resetForm(); }}
             className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors">
             + สร้างงานใหม่
           </button>
@@ -192,14 +260,16 @@ export default function TeacherAssignmentsPage() {
             <div>
               <label className="text-sm font-medium text-gray-700 block mb-2">มอบหมายให้</label>
               <div className="flex gap-2 mb-3">
-                <button onClick={() => setTargetMode('groups')}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${targetMode === 'groups' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                  📚 ตามกลุ่ม
-                </button>
-                <button onClick={() => setTargetMode('students')}
-                  className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${targetMode === 'students' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                  👤 รายบุคคล
-                </button>
+                {([
+                  ['groups', '📚 ตามกลุ่ม'],
+                  ['students', '👤 รายบุคคล'],
+                  ['session', '📅 ใน Session'],
+                ] as [TargetMode, string][]).map(([mode, label]) => (
+                  <button key={mode} onClick={() => setTargetMode(mode)}
+                    className={`flex-1 py-2 rounded-xl text-sm font-medium border transition-colors ${targetMode === mode ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                    {label}
+                  </button>
+                ))}
               </div>
 
               {/* Group selector */}
@@ -220,53 +290,115 @@ export default function TeacherAssignmentsPage() {
               {/* Individual student selector */}
               {targetMode === 'students' && (
                 <div className="border border-gray-200 rounded-xl overflow-hidden">
-                  {/* Search bar */}
                   <div className="p-2 border-b border-gray-100 flex gap-2 items-center bg-gray-50">
-                    <input
-                      type="text"
-                      value={studentSearch}
-                      onChange={e => setStudentSearch(e.target.value)}
+                    <input type="text" value={studentSearch} onChange={e => setStudentSearch(e.target.value)}
                       placeholder="🔍 ค้นหานักเรียน..."
-                      className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    />
-                    <button onClick={selectAllVisible}
-                      className="text-xs text-blue-600 hover:text-blue-700 font-medium px-2 whitespace-nowrap">
-                      {filteredStudents.every(s => targetStudentIds.includes(s.id)) ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
+                      className="flex-1 bg-white border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                    <button onClick={() => {
+                      const vis = filteredStudents.map(s => s.id);
+                      const all = vis.every(id => targetStudentIds.includes(id));
+                      setTargetStudentIds(prev => all ? prev.filter(id => !vis.includes(id)) : [...new Set([...prev, ...vis])]);
+                    }} className="text-xs text-blue-600 font-medium px-2 whitespace-nowrap">
+                      {filteredStudents.every(s => targetStudentIds.includes(s.id)) ? 'ยกเลิก' : 'เลือกทั้งหมด'}
                     </button>
                   </div>
-
-                  {/* Student list */}
                   <div className="max-h-52 overflow-y-auto divide-y divide-gray-50">
-                    {filteredStudents.length === 0 ? (
-                      <p className="text-center text-gray-400 text-sm py-6">ไม่พบนักเรียน</p>
-                    ) : filteredStudents.map(s => {
-                      const selected = targetStudentIds.includes(s.id);
+                    {filteredStudents.map(s => {
+                      const sel = targetStudentIds.includes(s.id);
                       return (
                         <button key={s.id} onClick={() => toggleStudent(s.id)}
-                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${selected ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
-                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${selected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
-                            {selected && <span className="text-white text-xs font-bold">✓</span>}
+                          className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${sel ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                            {sel && <span className="text-white text-xs font-bold">✓</span>}
                           </div>
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shrink-0">
-                            {s.nickname[0]}
-                          </div>
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-sm shrink-0">{s.nickname[0]}</div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-gray-800">{s.nickname}
-                              {s.full_name && <span className="text-gray-400 font-normal text-xs ml-1">({s.full_name})</span>}
-                            </p>
+                            <p className="text-sm font-medium text-gray-800">{s.nickname}</p>
                             <p className="text-xs text-gray-400">{s.grade} · {s.student_code}</p>
                           </div>
                         </button>
                       );
                     })}
                   </div>
-
-                  {/* Selected count */}
                   {targetStudentIds.length > 0 && (
                     <div className="bg-blue-50 border-t border-blue-100 px-4 py-2 flex items-center justify-between">
                       <p className="text-sm text-blue-700 font-medium">เลือกแล้ว {targetStudentIds.length} คน</p>
-                      <button onClick={() => setTargetStudentIds([])}
-                        className="text-xs text-red-400 hover:text-red-500">ล้างทั้งหมด</button>
+                      <button onClick={() => setTargetStudentIds([])} className="text-xs text-red-400 hover:text-red-500">ล้าง</button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Session selector */}
+              {targetMode === 'session' && (
+                <div className="space-y-3">
+                  {/* Course picker */}
+                  <div>
+                    <label className="text-xs font-medium text-gray-600">เลือกคอร์ส</label>
+                    <select value={selectedCourseId} onChange={e => onCourseChange(e.target.value)}
+                      className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                      <option value="">— เลือกคอร์ส —</option>
+                      {allCourses.map(c => (
+                        <option key={c.id} value={c.id}>{c.subject ? `[${c.subject}] ` : ''}{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Session picker */}
+                  {selectedCourseId && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-600">เลือก Session</label>
+                      {courseSessions.length === 0 ? (
+                        <p className="mt-1 text-xs text-gray-400 bg-gray-50 rounded-xl px-3 py-2">คอร์สนี้ยังไม่มี Session</p>
+                      ) : (
+                        <select value={selectedSessionId} onChange={e => onSessionChange(e.target.value)}
+                          className="mt-1 w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                          <option value="">— เลือก Session —</option>
+                          {courseSessions.map(s => (
+                            <option key={s.id} value={s.id}>
+                              {new Date(s.session_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })} · สัปดาห์ {s.week_number ?? '?'} · {s.topic}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Students in session (toggle individual) */}
+                  {selectedSessionId && sessionStudentObjects.length > 0 && (
+                    <div className="border border-gray-200 rounded-xl overflow-hidden">
+                      <div className="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                        <p className="text-xs font-medium text-gray-600">นักเรียนใน Session ({sessionStudentObjects.length} คน)</p>
+                        <button onClick={() => {
+                          const all = sessionStudentObjects.every(s => sessionStudentIds.includes(s.id));
+                          setSessionStudentIds(all ? [] : sessionStudentObjects.map(s => s.id));
+                        }} className="text-xs text-blue-600 font-medium">
+                          {sessionStudentObjects.every(s => sessionStudentIds.includes(s.id)) ? 'ยกเลิกทั้งหมด' : 'เลือกทั้งหมด'}
+                        </button>
+                      </div>
+                      <div className="divide-y divide-gray-50">
+                        {sessionStudentObjects.map(s => {
+                          const sel = sessionStudentIds.includes(s.id);
+                          return (
+                            <button key={s.id} onClick={() => toggleSessionStudent(s.id)}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${sel ? 'bg-blue-50' : 'hover:bg-gray-50'}`}>
+                              <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-blue-600 border-blue-600' : 'border-gray-300'}`}>
+                                {sel && <span className="text-white text-xs font-bold">✓</span>}
+                              </div>
+                              <div className="w-7 h-7 rounded-full bg-blue-100 text-blue-700 font-bold flex items-center justify-center text-xs shrink-0">{s.nickname[0]}</div>
+                              <div className="flex-1">
+                                <p className="text-sm font-medium text-gray-800">{s.nickname}</p>
+                                <p className="text-xs text-gray-400">{s.grade}</p>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {sessionStudentIds.length > 0 && (
+                        <div className="bg-blue-50 border-t border-blue-100 px-4 py-2">
+                          <p className="text-sm text-blue-700 font-medium">มอบหมายให้ {sessionStudentIds.length} คน</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -274,12 +406,11 @@ export default function TeacherAssignmentsPage() {
             </div>
 
             <div className="flex gap-3">
-              <button onClick={() => setShowForm(false)}
+              <button onClick={() => { setShowForm(false); resetForm(); }}
                 className="flex-1 border border-gray-300 text-gray-600 py-3 rounded-xl font-medium hover:bg-gray-50 transition-colors">
                 ยกเลิก
               </button>
-              <button onClick={createAssignment}
-                disabled={!title.trim() || saving || (targetMode === 'students' && targetStudentIds.length === 0)}
+              <button onClick={createAssignment} disabled={!canCreate}
                 className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">
                 {saving ? 'กำลังสร้าง...' : '✅ สร้างงาน'}
               </button>
@@ -290,17 +421,14 @@ export default function TeacherAssignmentsPage() {
         {/* Assignment list */}
         {assignments.map(a => {
           const hasIndividuals = (a.target_student_ids ?? []).length > 0;
-          const namedStudents = hasIndividuals
-            ? allStudents.filter(s => a.target_student_ids.includes(s.id))
-            : [];
+          const namedStudents = hasIndividuals ? allStudents.filter(s => a.target_student_ids.includes(s.id)) : [];
+          const sessInfo = a.session_id ? sessionMap.get(a.session_id) : null;
+          const courseName = a.course_id ? courseNameMap.get(a.course_id) : null;
 
-          // Inline edit form
           if (editingId === a.id) {
             return (
               <div key={a.id} className="bg-white rounded-2xl shadow-sm p-5 border-2 border-blue-200 space-y-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-gray-800">✏️ แก้ไขงาน</span>
-                </div>
+                <span className="font-semibold text-gray-800">✏️ แก้ไขงาน</span>
                 <div>
                   <label className="text-xs font-medium text-gray-600">ชื่องาน *</label>
                   <input value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
@@ -325,11 +453,9 @@ export default function TeacherAssignmentsPage() {
                 </div>
                 <div className="flex gap-2 pt-1">
                   <button onClick={() => setEditingId(null)}
-                    className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50 transition-colors">
-                    ยกเลิก
-                  </button>
+                    className="flex-1 border border-gray-300 text-gray-600 py-2.5 rounded-xl text-sm font-medium hover:bg-gray-50">ยกเลิก</button>
                   <button onClick={saveEdit} disabled={editSaving || !editForm.title.trim()}
-                    className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors">
+                    className="flex-1 bg-blue-600 disabled:opacity-50 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-blue-700">
                     {editSaving ? 'กำลังบันทึก...' : '💾 บันทึก'}
                   </button>
                 </div>
@@ -343,25 +469,31 @@ export default function TeacherAssignmentsPage() {
                 <div className="flex-1">
                   <p className="font-semibold text-gray-800">{a.title}</p>
                   {a.description && <p className="text-sm text-gray-500 mt-0.5">{a.description}</p>}
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {hasIndividuals ? (
-                      namedStudents.length > 0
-                        ? namedStudents.slice(0, 4).map(s => (
-                          <span key={s.id} className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                            👤 {s.nickname}
-                          </span>
-                        )).concat(namedStudents.length > 4 ? [
-                          <span key="more" className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
-                            +{namedStudents.length - 4} คน
-                          </span>
-                        ] : [])
-                        : <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">👤 รายบุคคล</span>
-                    ) : a.target_groups.length === 0
-                      ? <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">ทุกกลุ่ม</span>
-                      : a.target_groups.map(g => (
-                        <span key={g} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{GROUP_LABELS[g]}</span>
-                      ))
-                    }
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {/* Session tag */}
+                    {sessInfo && (
+                      <span className="text-xs bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
+                        📅 {courseName ? `${courseName} · ` : ''}{sessInfo.topic}
+                      </span>
+                    )}
+                    {/* Target tags */}
+                    {!sessInfo && (hasIndividuals
+                      ? namedStudents.slice(0, 4).map(s => (
+                        <span key={s.id} className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">👤 {s.nickname}</span>
+                      )).concat(namedStudents.length > 4 ? [
+                        <span key="more" className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">+{namedStudents.length - 4}</span>
+                      ] : [])
+                      : a.target_groups.length === 0
+                        ? [<span key="all" className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">ทุกกลุ่ม</span>]
+                        : a.target_groups.map(g => (
+                          <span key={g} className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{GROUP_LABELS[g]}</span>
+                        ))
+                    )}
+                    {sessInfo && hasIndividuals && (
+                      <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">
+                        👤 {a.target_student_ids.length} คน
+                      </span>
+                    )}
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">เต็ม {a.max_score}</span>
                     {a.due_date && (
                       <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full">
@@ -372,17 +504,13 @@ export default function TeacherAssignmentsPage() {
                 </div>
                 <div className="flex flex-col gap-1.5 shrink-0">
                   <button onClick={() => startEdit(a)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
-                    ✏️ แก้ไข
-                  </button>
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-blue-50 text-blue-600 hover:bg-blue-100">✏️ แก้ไข</button>
                   <button onClick={() => toggleActive(a)}
-                    className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${a.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                    className={`text-xs px-3 py-1.5 rounded-lg font-medium ${a.is_active ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
                     {a.is_active ? '✅ เปิดอยู่' : '🔒 ปิดแล้ว'}
                   </button>
                   <button onClick={() => deleteAssignment(a.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-50 text-red-500 hover:bg-red-100 transition-colors">
-                    🗑️ ลบ
-                  </button>
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-50 text-red-500 hover:bg-red-100">🗑️ ลบ</button>
                 </div>
               </div>
             </div>

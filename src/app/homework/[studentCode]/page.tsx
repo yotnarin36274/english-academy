@@ -41,6 +41,8 @@ export default function StudentHomeworkPage() {
   const [radarSessions, setRadarSessions] = useState(0);
   const [sessionReports, setSessionReports] = useState<SessionReportInfo[]>([]);
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
+  const [asgSessionMap, setAsgSessionMap] = useState<Map<string, string>>(new Map()); // session_id → topic
+  const [asgCourseMap, setAsgCourseMap] = useState<Map<string, string>>(new Map());   // course_id → name
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -88,6 +90,20 @@ export default function StudentHomeworkPage() {
     });
     setAssignments(merged);
     setRefreshing(false);
+
+    // Load session/course labels for assignments that have session_id
+    const sIds = [...new Set(merged.map(a => a.session_id).filter(Boolean))] as string[];
+    const cIds = [...new Set(merged.map(a => a.course_id).filter(Boolean))] as string[];
+    const [sRes, cRes] = await Promise.all([
+      sIds.length ? db().from('class_sessions').select('id, topic').in('id', sIds) : { data: [] },
+      cIds.length ? db().from('courses').select('id, name').in('id', cIds) : { data: [] },
+    ]);
+    const sm = new Map<string, string>();
+    (sRes.data ?? []).forEach((s: { id: string; topic: string }) => sm.set(s.id, s.topic));
+    setAsgSessionMap(sm);
+    const cm = new Map<string, string>();
+    (cRes.data ?? []).forEach((c: { id: string; name: string }) => cm.set(c.id, c.name));
+    setAsgCourseMap(cm);
   }
 
   async function fetchRadar(studentId: string) {
@@ -399,6 +415,11 @@ export default function StudentHomeworkPage() {
                 <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-red-100 p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1">
+                      {a.session_id && (
+                        <p className="text-xs text-indigo-600 font-medium mb-1">
+                          📅 {a.course_id && asgCourseMap.get(a.course_id) ? `${asgCourseMap.get(a.course_id)} · ` : ''}{asgSessionMap.get(a.session_id) ?? ''}
+                        </p>
+                      )}
                       <p className="font-semibold text-gray-800">{a.title}</p>
                       {a.description && <p className="text-sm text-gray-500 mt-0.5">{a.description}</p>}
                       {a.due_date && (
@@ -431,6 +452,11 @@ export default function StudentHomeworkPage() {
                   <div key={a.id} className="bg-white rounded-xl border border-amber-100 p-4 flex items-center gap-3">
                     <span className="text-2xl shrink-0">📬</span>
                     <div className="flex-1">
+                      {a.session_id && (
+                        <p className="text-xs text-indigo-500 mb-0.5">
+                          📅 {a.course_id && asgCourseMap.get(a.course_id) ? `${asgCourseMap.get(a.course_id)} · ` : ''}{asgSessionMap.get(a.session_id) ?? ''}
+                        </p>
+                      )}
                       <p className="font-medium text-gray-800">{a.title}</p>
                       <p className="text-xs text-gray-400">
                         ส่งแล้ว {new Date(a.submission!.submitted_at).toLocaleDateString('th-TH')}
@@ -462,6 +488,11 @@ export default function StudentHomeworkPage() {
                 const pct = fb.score != null ? Math.round((fb.score / fb.max_score) * 100) : null;
                 return (
                   <div key={a.id} className="bg-white rounded-2xl border border-green-100 p-4 shadow-sm">
+                    {a.session_id && (
+                      <p className="text-xs text-indigo-500 mb-1">
+                        📅 {a.course_id && asgCourseMap.get(a.course_id) ? `${asgCourseMap.get(a.course_id)} · ` : ''}{asgSessionMap.get(a.session_id) ?? ''}
+                      </p>
+                    )}
                     <div className="flex items-start justify-between">
                       <p className="font-semibold text-gray-800">{a.title}</p>
                       {pct != null && (

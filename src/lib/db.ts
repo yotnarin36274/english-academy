@@ -73,6 +73,8 @@ export interface Assignment {
   target_student_ids: string[];
   max_score: number;
   is_active: boolean;
+  session_id: string | null;
+  course_id: string | null;
 }
 
 export interface HomeworkSubmission {

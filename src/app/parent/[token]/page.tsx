@@ -98,6 +98,8 @@ export default function ParentPortalPage() {
   const [attendedHours, setAttendedHours] = useState(0);
   const [sessionReports, setSessionReports] = useState<SessionReportInfo[]>([]);
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
+  const [asgSessionMap, setAsgSessionMap] = useState<Map<string, string>>(new Map());
+  const [asgCourseMap, setAsgCourseMap] = useState<Map<string, string>>(new Map());
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -158,6 +160,19 @@ export default function ParentPortalPage() {
     });
     setItems(merged);
     setLastUpdated(new Date());
+
+    const sIds = [...new Set(merged.map(i => i.assignment.session_id).filter(Boolean))] as string[];
+    const cIds = [...new Set(merged.map(i => i.assignment.course_id).filter(Boolean))] as string[];
+    const [sRes, cRes] = await Promise.all([
+      sIds.length ? db().from('class_sessions').select('id, topic').in('id', sIds) : { data: [] },
+      cIds.length ? db().from('courses').select('id, name').in('id', cIds) : { data: [] },
+    ]);
+    const sm = new Map<string, string>();
+    (sRes.data ?? []).forEach((s: { id: string; topic: string }) => sm.set(s.id, s.topic));
+    setAsgSessionMap(sm);
+    const cm = new Map<string, string>();
+    (cRes.data ?? []).forEach((c: { id: string; name: string }) => cm.set(c.id, c.name));
+    setAsgCourseMap(cm);
   }
 
   async function fetchRadar(studentId: string) {
@@ -513,6 +528,11 @@ export default function ParentPortalPage() {
               const status = !sub ? 'notSubmitted' : !fb ? 'pending' : 'reviewed';
               return (
                 <div key={a.id} className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+                  {a.session_id && (
+                    <p className="text-xs text-indigo-500 mb-1">
+                      📅 {a.course_id && asgCourseMap.get(a.course_id) ? `${asgCourseMap.get(a.course_id)} · ` : ''}{asgSessionMap.get(a.session_id) ?? ''}
+                    </p>
+                  )}
                   <div className="flex items-start justify-between gap-2">
                     <p className="font-semibold text-gray-800 flex-1">{a.title}</p>
                     <span className={`text-xs px-2 py-1 rounded-full shrink-0 font-medium ${
