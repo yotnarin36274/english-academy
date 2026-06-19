@@ -47,6 +47,8 @@ export default function SessionReportPage() {
   const [currentUpload, setCurrentUpload] = useState<{ name: string; idx: number; total: number; progress: number } | null>(null);
   const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
   const [currentAttUpload, setCurrentAttUpload] = useState<{ name: string; progress: number } | null>(null);
+  const [attUrlInput, setAttUrlInput] = useState('');
+  const [attNameInput, setAttNameInput] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
   const attachFileRef = useRef<HTMLInputElement>(null);
   const tokenRef = useRef<{ value: string; expiry: number } | null>(null);
@@ -193,6 +195,8 @@ export default function SessionReportPage() {
   }
 
   async function uploadAttachFiles(files: File[]) {
+    // Show loading state BEFORE requesting OAuth token so user sees feedback immediately
+    setCurrentAttUpload({ name: `กำลังเชื่อมต่อ Google Drive...`, progress: 0 });
     try {
       const token = await getToken();
       const sessionDate = session?.session_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
@@ -210,9 +214,26 @@ export default function SessionReportPage() {
       setCurrentAttUpload(null);
       await doSaveReport(videoUrls, summary, allAtts);
     } catch (err) {
-      alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
       setCurrentAttUpload(null);
+      alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
     }
+  }
+
+  function addAttByUrl() {
+    const url = attUrlInput.trim();
+    if (!url) return;
+    let name = attNameInput.trim();
+    if (!name) {
+      try {
+        const seg = decodeURIComponent(url.split('?')[0].split('/').pop() ?? '');
+        name = (seg && seg !== 'view' && seg !== 'download' && seg.length > 3) ? seg : 'ไฟล์แนบ';
+      } catch { name = 'ไฟล์แนบ'; }
+    }
+    const newAtts = [...attachments, { url, name }];
+    setAttachments(newAtts);
+    setAttUrlInput('');
+    setAttNameInput('');
+    doSaveReport(videoUrls, summary, newAtts);
   }
 
   async function removeAttachment(idx: number) {
@@ -451,44 +472,65 @@ export default function SessionReportPage() {
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400" />
 
           {/* Attachments */}
-          <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-gray-500">📎 ไฟล์ประกอบ{attachments.length > 0 ? ` (${attachments.length})` : ''}</p>
-              <button onClick={() => attachFileRef.current?.click()}
-                disabled={!!currentAttUpload}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-40 transition-colors">
-                + แนบไฟล์
-              </button>
-            </div>
+          <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2.5">
+            <p className="text-xs font-semibold text-gray-500">📎 ไฟล์ประกอบ{attachments.length > 0 ? ` (${attachments.length})` : ''}</p>
 
             {attachments.length > 0 && (
               <div className="space-y-1.5">
                 {attachments.map((att, i) => (
                   <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5 text-xs">
                     <span>{attIcon(att.name)}</span>
-                    <span className="flex-1 text-gray-700 truncate">{att.name}</span>
+                    <a href={att.url} target="_blank" rel="noreferrer" className="flex-1 text-blue-600 underline truncate">{att.name}</a>
                     <button onClick={() => removeAttachment(i)} className="text-red-400 hover:text-red-600 shrink-0 transition-colors">✕</button>
                   </div>
                 ))}
               </div>
             )}
 
-            {currentAttUpload ? (
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span className="truncate">⬆️ {currentAttUpload.name}</span>
-                  <span className="font-semibold text-blue-600 shrink-0 ml-2">{currentAttUpload.progress}%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-1.5">
-                  <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${currentAttUpload.progress}%` }} />
-                </div>
+            {/* URL paste — วิธีที่ 1 (ไม่ต้องการ OAuth) */}
+            <div className="space-y-1.5">
+              <p className="text-xs text-gray-400">วิธีที่ 1: วาง URL จาก Google Drive / Dropbox / อื่นๆ</p>
+              <div className="flex gap-1.5">
+                <input value={attUrlInput} onChange={e => setAttUrlInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addAttByUrl(); }}
+                  placeholder="URL ของไฟล์"
+                  className="flex-1 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                <input value={attNameInput} onChange={e => setAttNameInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') addAttByUrl(); }}
+                  placeholder="ชื่อไฟล์ (ไม่บังคับ)"
+                  className="w-28 border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-400" />
+                <button onClick={addAttByUrl} disabled={!attUrlInput.trim()}
+                  className="shrink-0 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs rounded-lg disabled:opacity-40 font-medium transition-colors">
+                  เพิ่ม
+                </button>
               </div>
-            ) : (
-              <p className="text-xs text-gray-400 text-center">รูปภาพ · PDF · วิดีโอ · เลือกได้หลายไฟล์</p>
-            )}
+            </div>
 
-            <input ref={attachFileRef} type="file" accept="image/*,.pdf,video/*,.doc,.docx" multiple className="hidden"
-              onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) uploadAttachFiles(f); e.target.value = ''; }} />
+            {/* Drive upload — วิธีที่ 2 */}
+            <div className="space-y-1">
+              <p className="text-xs text-gray-400">วิธีที่ 2: อัปโหลดไฟล์ขึ้น Google Drive</p>
+              {currentAttUpload ? (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs text-gray-500">
+                    <span className="truncate">⬆️ {currentAttUpload.name}</span>
+                    {currentAttUpload.progress > 0 && <span className="font-semibold text-blue-600 shrink-0 ml-2">{currentAttUpload.progress}%</span>}
+                  </div>
+                  {currentAttUpload.progress > 0 && (
+                    <div className="w-full bg-gray-100 rounded-full h-1.5">
+                      <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${currentAttUpload.progress}%` }} />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <button onClick={() => attachFileRef.current?.click()}
+                  className="w-full border border-blue-200 text-blue-600 bg-blue-50 text-xs py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium">
+                  ☁️ อัปโหลดไปยัง Google Drive
+                  <span className="text-blue-400 ml-1">(รูปภาพ · PDF · วิดีโอ)</span>
+                </button>
+              )}
+              <input ref={attachFileRef} type="file" accept="image/*,.pdf,video/*,.doc,.docx" multiple className="hidden"
+                onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) uploadAttachFiles(f); e.target.value = ''; }} />
+            </div>
           </div>
 
           <button onClick={saveReport} disabled={savingReport}

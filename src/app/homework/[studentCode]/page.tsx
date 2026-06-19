@@ -28,6 +28,11 @@ function attIcon(name: string): string {
   return '📁';
 }
 
+function driveDownloadUrl(url: string): string | null {
+  const m = url.match(/\/d\/([^/?#]+)/);
+  return m ? `https://drive.google.com/uc?export=download&id=${m[1]}` : null;
+}
+
 function linkify(text: string) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g);
   return parts.map((part, i) =>
@@ -389,14 +394,25 @@ export default function StudentHomeworkPage() {
                                 {sr.attachments.length > 0 && (
                                   <div className="space-y-1.5">
                                     <p className="text-xs font-semibold text-gray-500">📎 ไฟล์ประกอบ ({sr.attachments.length})</p>
-                                    {sr.attachments.map((att, ai) => (
-                                      <a key={ai} href={att.url} target="_blank" rel="noreferrer"
-                                        className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 hover:bg-gray-100 transition-colors">
-                                        <span className="text-base">{attIcon(att.name)}</span>
-                                        <span className="flex-1 text-sm text-gray-700 truncate">{att.name}</span>
-                                        <span className="text-xs text-blue-500 shrink-0">เปิด →</span>
-                                      </a>
-                                    ))}
+                                    {sr.attachments.map((att, ai) => {
+                                      const dlUrl = driveDownloadUrl(att.url);
+                                      return (
+                                        <div key={ai} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                                          <span className="text-base shrink-0">{attIcon(att.name)}</span>
+                                          <span className="flex-1 text-sm text-gray-700 truncate">{att.name}</span>
+                                          <a href={att.url} target="_blank" rel="noreferrer"
+                                            className="text-xs text-blue-500 hover:text-blue-700 shrink-0 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                                            เปิด
+                                          </a>
+                                          {dlUrl && (
+                                            <a href={dlUrl} target="_blank" rel="noreferrer"
+                                              className="text-xs text-green-600 hover:text-green-800 shrink-0 px-2 py-1 rounded-lg hover:bg-green-50 transition-colors">
+                                              ⬇️ โหลด
+                                            </a>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 )}
                                 {sr.feedback && (
