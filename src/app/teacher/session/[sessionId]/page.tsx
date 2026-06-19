@@ -134,7 +134,7 @@ export default function SessionReportPage() {
       ...s, status, attendanceId: newAttId ?? s.attendanceId,
     }));
 
-    if ((status === 'absent' || status === 'leave') && prevStatus === 'present') {
+    if ((status === 'absent' || status === 'leave') && prevStatus !== 'absent' && prevStatus !== 'leave') {
       if (newAttId) {
         await db().from('makeup_classes').upsert({
           attendance_id: newAttId,
