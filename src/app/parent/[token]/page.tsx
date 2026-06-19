@@ -234,7 +234,7 @@ export default function ParentPortalPage() {
 
     const [{ data: mkData }, { data: reportsData }, { data: fbData }] = await Promise.all([
       db().from('makeup_classes').select('id, topic, duration_hours').eq('student_id', stu.id).eq('completed', false),
-      db().from('session_reports').select('session_id, video_url, video_urls, summary, attachments').in('session_id', sessionIds),
+      db().from('session_reports').select('*').in('session_id', sessionIds),
       db().from('session_student_feedback').select('session_id, feedback').eq('student_id', stu.id),
     ]);
     setMakeups((mkData ?? []) as {id: string; topic: string; duration_hours: number}[]);
