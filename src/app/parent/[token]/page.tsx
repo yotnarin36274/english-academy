@@ -17,6 +17,7 @@ interface ProgressItem {
 interface SessionReportInfo {
   id: string; session_date: string; topic: string; subject: string; duration_hours: number; status: string;
   video_urls: string[]; summary: string | null; feedback: string | null;
+  attachments: { url: string; name: string }[];
 }
 
 const SUBJECT_PALETTE = [
@@ -38,9 +39,9 @@ function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 
 const FILE_ICON: Record<string, string> = { image: '🖼️', video: '🎥', audio: '🎵', pdf: '📄', word: '📝', other: '📁' };
 const FILE_LABEL: Record<string, string> = { image: 'รูปภาพ', video: 'วิดีโอ', audio: 'เสียง', pdf: 'PDF', word: 'Word', other: 'ไฟล์' };
 
-function ParentFileItem({ url }: { url: string }) {
-  const type = guessType(url);
-  const name = decodeURIComponent(url.split('/').pop()?.split('?')[0] ?? 'ไฟล์');
+function ParentFileItem({ url, name: fileName }: { url: string; name?: string }) {
+  const type = fileName ? guessType(fileName) : guessType(url);
+  const name = fileName ?? decodeURIComponent(url.split('/').pop()?.split('?')[0] ?? 'ไฟล์');
   if (type === 'image') return (
     <a href={url} target="_blank" rel="noreferrer" className="block hover:opacity-80 transition-opacity">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -233,22 +234,23 @@ export default function ParentPortalPage() {
 
     const [{ data: mkData }, { data: reportsData }, { data: fbData }] = await Promise.all([
       db().from('makeup_classes').select('id, topic, duration_hours').eq('student_id', stu.id).eq('completed', false),
-      db().from('session_reports').select('session_id, video_url, video_urls, summary').in('session_id', sessionIds),
+      db().from('session_reports').select('session_id, video_url, video_urls, summary, attachments').in('session_id', sessionIds),
       db().from('session_student_feedback').select('session_id, feedback').eq('student_id', stu.id),
     ]);
     setMakeups((mkData ?? []) as {id: string; topic: string; duration_hours: number}[]);
 
-    const rMap = new Map<string, {video_urls: string[]; video_url: string|null; summary: string|null}>();
-    (reportsData ?? []).forEach((r: {session_id: string; video_urls?: string[]; video_url?: string|null; summary: string|null}) => {
+    const rMap = new Map<string, {video_urls: string[]; video_url: string|null; summary: string|null; attachments: {url: string; name: string}[]}>();
+    (reportsData ?? []).forEach((r: {session_id: string; video_urls?: string[]; video_url?: string|null; summary: string|null; attachments?: unknown}) => {
       const urls = (r.video_urls ?? []).length > 0 ? r.video_urls! : r.video_url ? [r.video_url] : [];
-      rMap.set(r.session_id, { video_urls: urls, video_url: r.video_url ?? null, summary: r.summary });
+      const atts = Array.isArray(r.attachments) ? r.attachments as {url: string; name: string}[] : [];
+      rMap.set(r.session_id, { video_urls: urls, video_url: r.video_url ?? null, summary: r.summary, attachments: atts });
     });
     const fMap = new Map<string, string|null>();
     (fbData ?? []).forEach((f: {session_id: string; feedback: string|null}) => fMap.set(f.session_id, f.feedback));
 
     const reports: SessionReportInfo[] = merged
-      .map(s => ({ ...s, subject: s.subject ?? '', video_urls: rMap.get(s.id)?.video_urls ?? [], summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null }))
-      .filter(r => r.video_urls.length > 0 || r.summary || r.feedback);
+      .map(s => ({ ...s, subject: s.subject ?? '', video_urls: rMap.get(s.id)?.video_urls ?? [], summary: rMap.get(s.id)?.summary ?? null, feedback: fMap.get(s.id) ?? null, attachments: rMap.get(s.id)?.attachments ?? [] }))
+      .filter(r => r.video_urls.length > 0 || r.summary || r.feedback || r.attachments.length > 0);
     setSessionReports(reports);
     if (reports.length > 0) setExpandedReports(new Set([reports[0].id]));
   }
@@ -483,6 +485,14 @@ export default function ParentPortalPage() {
                                   <div className="bg-gray-50 rounded-xl px-3 py-2.5">
                                     <p className="text-xs font-semibold text-gray-500 mb-1">📝 สรุปเนื้อหา</p>
                                     <p className="text-sm text-gray-700 whitespace-pre-wrap">{sr.summary}</p>
+                                  </div>
+                                )}
+                                {sr.attachments.length > 0 && (
+                                  <div className="space-y-1.5">
+                                    <p className="text-xs font-semibold text-gray-500">📎 ไฟล์ประกอบ ({sr.attachments.length})</p>
+                                    {sr.attachments.map((att, ai) => (
+                                      <ParentFileItem key={ai} url={att.url} name={att.name} />
+                                    ))}
                                   </div>
                                 )}
                                 {sr.feedback && (

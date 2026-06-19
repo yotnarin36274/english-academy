@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { VideoPlayer } from '@/components/VideoPlayer';
-import { loadGoogleScript, requestAccessToken, uploadSessionVideo } from '@/lib/googleDrive';
+import { loadGoogleScript, requestAccessToken, uploadSessionVideo, uploadSessionAttachment } from '@/lib/googleDrive';
 import type { ClassSession, Student, Attendance, Course } from '@/lib/db';
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
@@ -45,7 +45,10 @@ export default function SessionReportPage() {
   const [reportSaved, setReportSaved] = useState(false);
 
   const [currentUpload, setCurrentUpload] = useState<{ name: string; idx: number; total: number; progress: number } | null>(null);
+  const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [currentAttUpload, setCurrentAttUpload] = useState<{ name: string; progress: number } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const attachFileRef = useRef<HTMLInputElement>(null);
   const tokenRef = useRef<{ value: string; expiry: number } | null>(null);
 
   const [feedbacks, setFeedbacks] = useState<Map<string, FeedbackState>>(new Map());
@@ -106,6 +109,8 @@ export default function SessionReportPage() {
         : report.video_url ? [report.video_url as string] : [];
       setVideoUrls(urls);
       setSummary(report.summary ?? '');
+      const atts = Array.isArray(report.attachments) ? report.attachments as { url: string; name: string }[] : [];
+      setAttachments(atts);
     }
 
     const { data: fbData } = await db().from('session_student_feedback').select('*').eq('session_id', sessionId);
@@ -180,17 +185,55 @@ export default function SessionReportPage() {
       const allUrls = [...videoUrls, ...newUrls];
       setVideoUrls(allUrls);
       setCurrentUpload(null);
-      await doSaveReport(allUrls, summary);
+      await doSaveReport(allUrls, summary, attachments);
     } catch (err) {
       alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
       setCurrentUpload(null);
     }
   }
 
+  async function uploadAttachFiles(files: File[]) {
+    try {
+      const token = await getToken();
+      const sessionDate = session?.session_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
+      const sessionTopic = session?.topic ?? 'Session';
+      const newAtts: { url: string; name: string }[] = [];
+      for (const file of files) {
+        setCurrentAttUpload({ name: file.name, progress: 0 });
+        const url = await uploadSessionAttachment(file, sessionTopic, sessionDate, token, (pct) => {
+          setCurrentAttUpload({ name: file.name, progress: pct });
+        });
+        newAtts.push({ url, name: file.name });
+      }
+      const allAtts = [...attachments, ...newAtts];
+      setAttachments(allAtts);
+      setCurrentAttUpload(null);
+      await doSaveReport(videoUrls, summary, allAtts);
+    } catch (err) {
+      alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
+      setCurrentAttUpload(null);
+    }
+  }
+
+  async function removeAttachment(idx: number) {
+    const newAtts = attachments.filter((_, i) => i !== idx);
+    setAttachments(newAtts);
+    await doSaveReport(videoUrls, summary, newAtts);
+  }
+
+  function attIcon(name: string): string {
+    const n = name.toLowerCase();
+    if (/\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(n)) return '🖼️';
+    if (/\.pdf$/.test(n)) return '📄';
+    if (/\.(mp4|mov|webm|avi|m4v|mkv)$/.test(n)) return '🎥';
+    if (/\.(doc|docx)$/.test(n)) return '📝';
+    return '📁';
+  }
+
   async function removeVideo(idx: number) {
     const newUrls = videoUrls.filter((_, i) => i !== idx);
     setVideoUrls(newUrls);
-    await doSaveReport(newUrls, summary);
+    await doSaveReport(newUrls, summary, attachments);
   }
 
   async function addUrlVideo() {
@@ -199,16 +242,17 @@ export default function SessionReportPage() {
     const newUrls = [...videoUrls, url];
     setVideoUrls(newUrls);
     setUrlInput('');
-    await doSaveReport(newUrls, summary);
+    await doSaveReport(newUrls, summary, attachments);
   }
 
-  async function doSaveReport(urls: string[], summaryText: string) {
+  async function doSaveReport(urls: string[], summaryText: string, atts: { url: string; name: string }[] = attachments) {
     setSavingReport(true);
     const payload = {
       session_id: sessionId,
       video_urls: urls,
       video_url: urls[0] ?? null,
       summary: summaryText.trim() || null,
+      attachments: atts,
       updated_at: new Date().toISOString(),
     };
     if (reportId) {
@@ -222,7 +266,7 @@ export default function SessionReportPage() {
     setTimeout(() => setReportSaved(false), 2000);
   }
 
-  async function saveReport() { await doSaveReport(videoUrls, summary); }
+  async function saveReport() { await doSaveReport(videoUrls, summary, attachments); }
 
   async function saveFeedback(studentId: string) {
     const fb = feedbacks.get(studentId);
@@ -405,6 +449,48 @@ export default function SessionReportPage() {
             placeholder="วันนี้เรียนเรื่อง... / จุดที่เน้น... / การบ้านที่มอบหมาย..."
             rows={4}
             className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-400" />
+
+          {/* Attachments */}
+          <div className="border border-dashed border-gray-200 rounded-xl p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-gray-500">📎 ไฟล์ประกอบ{attachments.length > 0 ? ` (${attachments.length})` : ''}</p>
+              <button onClick={() => attachFileRef.current?.click()}
+                disabled={!!currentAttUpload}
+                className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-40 transition-colors">
+                + แนบไฟล์
+              </button>
+            </div>
+
+            {attachments.length > 0 && (
+              <div className="space-y-1.5">
+                {attachments.map((att, i) => (
+                  <div key={i} className="flex items-center gap-2 bg-gray-50 rounded-lg px-2.5 py-1.5 text-xs">
+                    <span>{attIcon(att.name)}</span>
+                    <span className="flex-1 text-gray-700 truncate">{att.name}</span>
+                    <button onClick={() => removeAttachment(i)} className="text-red-400 hover:text-red-600 shrink-0 transition-colors">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {currentAttUpload ? (
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span className="truncate">⬆️ {currentAttUpload.name}</span>
+                  <span className="font-semibold text-blue-600 shrink-0 ml-2">{currentAttUpload.progress}%</span>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-1.5">
+                  <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${currentAttUpload.progress}%` }} />
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 text-center">รูปภาพ · PDF · วิดีโอ · เลือกได้หลายไฟล์</p>
+            )}
+
+            <input ref={attachFileRef} type="file" accept="image/*,.pdf,video/*,.doc,.docx" multiple className="hidden"
+              onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) uploadAttachFiles(f); e.target.value = ''; }} />
+          </div>
+
           <button onClick={saveReport} disabled={savingReport}
             className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-colors ${
               reportSaved ? 'bg-green-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50'

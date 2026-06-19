@@ -95,8 +95,9 @@ async function findOrCreateFolder(name: string, parentId: string | null, token: 
   return data.id as string;
 }
 
-export async function uploadSessionVideo(
+async function uploadToSessionFolder(
   file: File,
+  category: string,
   sessionTopic: string,
   sessionDate: string,
   token: string,
@@ -104,17 +105,14 @@ export async function uploadSessionVideo(
 ): Promise<string> {
   onProgress(2);
 
-  // สร้างโฟลเดอร์: ENG SPARK / Videos / [วันที่] [หัวข้อ]
   const rootId = await findOrCreateFolder('ENG SPARK', null, token);
-  const videosId = await findOrCreateFolder('Videos', rootId, token);
-  const folderLabel = `${sessionDate} ${sessionTopic}`
-    .replace(/[/\\:*?"<>|]/g, '-')
-    .slice(0, 80);
-  const folderId = await findOrCreateFolder(folderLabel, videosId, token);
+  const catId  = await findOrCreateFolder(category, rootId, token);
+  const folderLabel = `${sessionDate} ${sessionTopic}`.replace(/[/\\:*?"<>|]/g, '-').slice(0, 80);
+  const folderId = await findOrCreateFolder(folderLabel, catId, token);
 
   onProgress(8);
 
-  // เริ่ม resumable upload
+  const contentType = file.type || 'application/octet-stream';
   const initRes = await fetch(
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id',
     {
@@ -122,7 +120,7 @@ export async function uploadSessionVideo(
       headers: {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
-        'X-Upload-Content-Type': file.type || 'video/mp4',
+        'X-Upload-Content-Type': contentType,
         'X-Upload-Content-Length': String(file.size),
       },
       body: JSON.stringify({ name: file.name, parents: [folderId] }),
@@ -132,38 +130,31 @@ export async function uploadSessionVideo(
   const uploadUrl = initRes.headers.get('Location');
   if (!uploadUrl) throw new Error('Drive API ไม่ส่ง upload URL กลับมา');
 
-  // อัปโหลดทีละ 8 MB
   const CHUNK = 8 * 1024 * 1024;
   let sent = 0;
   let fileId = '';
 
   while (sent < file.size) {
     const end = Math.min(sent + CHUNK, file.size);
-    const chunk = file.slice(sent, end);
-
     const res = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
         'Content-Range': `bytes ${sent}-${end - 1}/${file.size}`,
-        'Content-Type': file.type || 'video/mp4',
+        'Content-Type': contentType,
       },
-      body: chunk,
+      body: file.slice(sent, end),
     });
-
     if (res.status === 200 || res.status === 201) {
-      const data = await res.json();
-      fileId = data.id;
+      fileId = (await res.json()).id;
     } else if (res.status !== 308) {
       throw new Error(`Chunk upload failed: ${res.status}`);
     }
-
     sent = end;
     onProgress(8 + Math.round((sent / file.size) * 88));
   }
 
   if (!fileId) throw new Error('อัปโหลดเสร็จแล้วแต่ไม่ได้รับ file ID');
 
-  // เปิดให้ดูได้สาธารณะ (anyone with link)
   await driveRequest(`files/${fileId}/permissions`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -172,4 +163,18 @@ export async function uploadSessionVideo(
 
   onProgress(100);
   return `https://drive.google.com/file/d/${fileId}/view`;
+}
+
+export function uploadSessionVideo(
+  file: File, sessionTopic: string, sessionDate: string,
+  token: string, onProgress: (pct: number) => void,
+): Promise<string> {
+  return uploadToSessionFolder(file, 'Videos', sessionTopic, sessionDate, token, onProgress);
+}
+
+export function uploadSessionAttachment(
+  file: File, sessionTopic: string, sessionDate: string,
+  token: string, onProgress: (pct: number) => void,
+): Promise<string> {
+  return uploadToSessionFolder(file, 'Attachments', sessionTopic, sessionDate, token, onProgress);
 }
