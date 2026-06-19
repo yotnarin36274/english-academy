@@ -170,9 +170,31 @@ export default function SessionReportPage() {
     return token;
   }
 
+  // Called from button click (direct user gesture) → OAuth popup is allowed by browser
+  async function handleVideoUploadClick() {
+    try {
+      await getToken(); // OAuth from direct click — popup allowed
+      fileRef.current?.click();
+    } catch (err) {
+      alert('เชื่อมต่อ Google Drive ไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function handleAttUploadClick() {
+    setCurrentAttUpload({ name: 'กำลังเชื่อมต่อ Google Drive...', progress: 0 });
+    try {
+      await getToken(); // OAuth from direct click — popup allowed
+      setCurrentAttUpload(null);
+      attachFileRef.current?.click();
+    } catch (err) {
+      setCurrentAttUpload(null);
+      alert('เชื่อมต่อ Google Drive ไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
   async function uploadFiles(files: File[]) {
     try {
-      const token = await getToken();
+      const token = await getToken(); // Token already cached from handleVideoUploadClick
       const sessionDate = session?.session_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
       const sessionTopic = session?.topic ?? 'Session';
       const newUrls: string[] = [];
@@ -195,10 +217,8 @@ export default function SessionReportPage() {
   }
 
   async function uploadAttachFiles(files: File[]) {
-    // Show loading state BEFORE requesting OAuth token so user sees feedback immediately
-    setCurrentAttUpload({ name: `กำลังเชื่อมต่อ Google Drive...`, progress: 0 });
     try {
-      const token = await getToken();
+      const token = await getToken(); // Token already cached from handleAttUploadClick
       const sessionDate = session?.session_date.slice(0, 10) ?? new Date().toISOString().slice(0, 10);
       const sessionTopic = session?.topic ?? 'Session';
       const newAtts: { url: string; name: string }[] = [];
@@ -453,7 +473,7 @@ export default function SessionReportPage() {
               <p className="text-xs text-gray-400 text-center">กรุณาอย่าปิดหน้าต่างขณะอัปโหลด</p>
             </div>
           ) : (
-            <button onClick={() => fileRef.current?.click()}
+            <button onClick={handleVideoUploadClick}
               className="w-full border border-blue-300 text-blue-600 bg-blue-50 text-sm py-2.5 rounded-xl hover:bg-blue-100 transition-colors font-medium">
               ☁️ อัปโหลดไปยัง Google Drive
               <span className="text-xs text-blue-400 ml-1">(เลือกได้หลายไฟล์)</span>
@@ -522,7 +542,7 @@ export default function SessionReportPage() {
                   )}
                 </div>
               ) : (
-                <button onClick={() => attachFileRef.current?.click()}
+                <button onClick={handleAttUploadClick}
                   className="w-full border border-blue-200 text-blue-600 bg-blue-50 text-xs py-2 rounded-lg hover:bg-blue-100 transition-colors font-medium">
                   ☁️ อัปโหลดไปยัง Google Drive
                   <span className="text-blue-400 ml-1">(รูปภาพ · PDF · วิดีโอ)</span>
