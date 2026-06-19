@@ -32,6 +32,15 @@ function driveDownloadUrl(url: string): string | null {
   return m ? `https://drive.google.com/uc?export=download&id=${m[1]}` : null;
 }
 
+function driveImgUrl(url: string): string {
+  const m = url.match(/\/d\/([^/?#]+)/);
+  return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w800` : url;
+}
+
+function isImage(name: string): boolean {
+  return /\.(jpg|jpeg|png|gif|webp|bmp|heic)$/i.test(name);
+}
+
 function guessType(url: string): 'image' | 'video' | 'audio' | 'pdf' | 'word' | 'other' {
   const u = url.toLowerCase().split('?')[0];
   if (/\.(jpg|jpeg|png|gif|webp|heic|heif|bmp)$/.test(u)) return 'image';
@@ -493,10 +502,32 @@ export default function ParentPortalPage() {
                                   </div>
                                 )}
                                 {sr.attachments.length > 0 && (
-                                  <div className="space-y-1.5">
+                                  <div className="space-y-2">
                                     <p className="text-xs font-semibold text-gray-500">📎 ไฟล์ประกอบ ({sr.attachments.length})</p>
                                     {sr.attachments.map((att, ai) => {
                                       const dlUrl = driveDownloadUrl(att.url);
+                                      if (isImage(att.name)) {
+                                        return (
+                                          <div key={ai} className="space-y-1">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img src={driveImgUrl(att.url)} alt={att.name}
+                                              className="w-full rounded-xl border border-gray-200 object-contain max-h-80"
+                                              onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                            <div className="flex gap-2 justify-end">
+                                              <a href={att.url} target="_blank" rel="noreferrer"
+                                                className="text-xs text-blue-500 hover:text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                                                เปิดเต็ม
+                                              </a>
+                                              {dlUrl && (
+                                                <a href={dlUrl} target="_blank" rel="noreferrer"
+                                                  className="text-xs text-green-600 hover:text-green-800 px-2 py-1 rounded-lg hover:bg-green-50 transition-colors">
+                                                  ⬇️ โหลด
+                                                </a>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      }
                                       return (
                                         <div key={ai} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
                                           <span className="text-lg shrink-0">{FILE_ICON[guessType(att.name)]}</span>
