@@ -93,6 +93,7 @@ export default function TeacherHubPage() {
   }
 
   const tools = [
+    { href: '/teacher/classroom',  icon: '🎮', label: 'เครื่องมือสอน',    desc: 'วงล้อสุ่ม แบ่งกลุ่ม จับเวลา คะแนนทีม ลูกเต๋า',          badge: null,            color: 'border-indigo-100 hover:border-indigo-300' },
     { href: '/teacher/homework',   icon: '📝', label: 'ตรวจการบ้าน',       desc: 'ดูงานที่ส่งและให้คะแนน Feedback',                badge: pendingHomework, color: 'border-amber-100 hover:border-amber-300' },
     { href: '/teacher/assignments',icon: '📚', label: 'สร้าง Assignment',   desc: 'สร้างและจัดการงานที่มอบหมาย',                    badge: null,            color: 'border-blue-100 hover:border-blue-300' },
     { href: '/teacher/courses',    icon: '📚', label: 'คอร์ส',              desc: 'สร้างและจัดการคอร์สเรียน',                       badge: null,            color: 'border-teal-100 hover:border-teal-300' },
