@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 
-const TEACHER_PASSWORD = 'ENGspark2025';
+const TEACHER_PASSWORD = 'FlukeENGSPARK29';
 
 export default function HubPage() {
   const [studentCode, setStudentCode] = useState('');
