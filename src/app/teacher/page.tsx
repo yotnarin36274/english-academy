@@ -29,6 +29,14 @@ export default function TeacherHubPage() {
       color: 'border-amber-100 hover:border-amber-300',
     },
     {
+      href: '/teacher/missing',
+      icon: '📌',
+      label: 'ยังไม่ส่งการบ้าน',
+      desc: 'ดูว่านักเรียนคนไหนยังค้างส่งงานชิ้นไหน',
+      badge: null,
+      color: 'border-rose-100 hover:border-rose-300',
+    },
+    {
       href: '/teacher/assignments',
       icon: '📚',
       label: 'สร้าง Assignment',
