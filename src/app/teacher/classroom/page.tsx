@@ -13,12 +13,12 @@ const WHEEL_COLORS = [
 ];
 
 const TEAM_COLORS = [
-  { name:'ทีมแดง',    light:'#FEE2E2', dark:'#EF4444', text:'#991B1B' },
-  { name:'ทีมน้ำเงิน', light:'#DBEAFE', dark:'#3B82F6', text:'#1E40AF' },
-  { name:'ทีมเขียว',  light:'#DCFCE7', dark:'#22C55E', text:'#166534' },
-  { name:'ทีมม่วง',   light:'#F3E8FF', dark:'#A855F7', text:'#6B21A8' },
-  { name:'ทีมส้ม',    light:'#FFEDD5', dark:'#F97316', text:'#9A3412' },
-  { name:'ทีมฟ้า',    light:'#CFFAFE', dark:'#06B6D4', text:'#164E63' },
+  { defaultName:'ทีมแดง',    light:'#FEE2E2', dark:'#EF4444', text:'#991B1B' },
+  { defaultName:'ทีมน้ำเงิน', light:'#DBEAFE', dark:'#3B82F6', text:'#1E40AF' },
+  { defaultName:'ทีมเขียว',  light:'#DCFCE7', dark:'#22C55E', text:'#166534' },
+  { defaultName:'ทีมม่วง',   light:'#F3E8FF', dark:'#A855F7', text:'#6B21A8' },
+  { defaultName:'ทีมส้ม',    light:'#FFEDD5', dark:'#F97316', text:'#9A3412' },
+  { defaultName:'ทีมฟ้า',    light:'#CFFAFE', dark:'#06B6D4', text:'#164E63' },
 ];
 
 const DICE_DOTS: Record<number,[number,number][]> = {
@@ -38,7 +38,6 @@ const TOOLS:{id:Tool;icon:string;label:string}[] = [
   {id:'scoreboard', icon:'🏆',label:'คะแนนทีม'},
   {id:'dice',       icon:'🎲',label:'ลูกเต๋า'},
 ];
-
 const GROUP_LABELS:Record<string,string> = {p46:'ป.4–ป.6',m13:'ม.1–ม.3',m46:'ม.4–ม.6'};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -48,22 +47,107 @@ function polarToCart(cx:number,cy:number,r:number,angleDeg:number){
   return {x:cx+r*Math.cos(rad), y:cy+r*Math.sin(rad)};
 }
 
+// ── Shared: Item List Editor ──────────────────────────────────────────────────
+
+function ItemListEditor({
+  items, onChange, students, placeholder = 'พิมพ์รายการ...',
+}:{
+  items:string[]; onChange:(items:string[])=>void; students:Student[]; placeholder?:string;
+}){
+  const [input,setInput]=useState('');
+
+  function add(){
+    const raw=input.trim();
+    if(!raw) return;
+    const newItems=raw.split(/[\n,]+/).map(s=>s.trim()).filter(Boolean);
+    onChange([...items,...newItems.filter(n=>!items.includes(n))]);
+    setInput('');
+  }
+
+  function remove(i:number){
+    onChange(items.filter((_,idx)=>idx!==i));
+  }
+
+  function loadStudents(){
+    const names=students.map(s=>s.nickname);
+    const merged=[...items];
+    names.forEach(n=>{ if(!merged.includes(n)) merged.push(n); });
+    onChange(merged);
+  }
+
+  return(
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+          รายการ ({items.length})
+        </span>
+        <div className="flex gap-1.5">
+          {students.length>0&&(
+            <button onClick={loadStudents}
+              className="text-xs px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-full transition-colors">
+              + โหลดชื่อนักเรียน
+            </button>
+          )}
+          {items.length>0&&(
+            <button onClick={()=>onChange([])}
+              className="text-xs px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-500 rounded-full transition-colors">
+              ล้างทั้งหมด
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Chips */}
+      {items.length>0&&(
+        <div className="flex flex-wrap gap-1.5 bg-gray-50 rounded-xl p-2.5 min-h-[44px]">
+          {items.map((item,i)=>(
+            <span key={i} className="flex items-center gap-1 bg-white border border-gray-200 rounded-full px-2.5 py-1 text-sm text-gray-700 shadow-sm">
+              {item}
+              <button onClick={()=>remove(i)} className="text-gray-400 hover:text-red-500 ml-0.5 leading-none transition-colors">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex gap-2">
+        <textarea
+          value={input}
+          onChange={e=>setInput(e.target.value)}
+          onKeyDown={e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();add();} }}
+          placeholder={`${placeholder}\n(รองรับหลายรายการ คั่นด้วย Enter หรือ ,)`}
+          rows={2}
+          className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-400"
+        />
+        <button onClick={add}
+          className="px-4 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-sm transition-colors shrink-0 active:scale-95">
+          + เพิ่ม
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Spin Wheel ────────────────────────────────────────────────────────────────
 
 function SpinWheel({students}:{students:Student[]}){
+  const [items,setItems]=useState<string[]>([]);
+  const [remaining,setRemaining]=useState<string[]>([]);
   const [rotation,setRotation]=useState(0);
   const [spinning,setSpinning]=useState(false);
-  const [winner,setWinner]=useState<Student|null>(null);
-  const [removed,setRemoved]=useState<Set<string>>(new Set());
+  const [winner,setWinner]=useState<string|null>(null);
+  const [showEditor,setShowEditor]=useState(true);
 
-  const active=students.filter(s=>!removed.has(s.id));
-  const N=active.length;
+  // sync remaining when items change
+  useEffect(()=>{ setRemaining([...items]); setWinner(null); },[items]);
+
+  const N=remaining.length;
 
   function spin(){
     if(spinning||N<1) return;
     setWinner(null);
     setSpinning(true);
-    if(N===1){setTimeout(()=>{setWinner(active[0]);setSpinning(false);},600);return;}
+    if(N===1){setTimeout(()=>{setWinner(remaining[0]);setSpinning(false);},600);return;}
     const sa=360/N;
     const wi=Math.floor(Math.random()*N);
     const off=sa*0.15+Math.random()*sa*0.7;
@@ -72,101 +156,107 @@ function SpinWheel({students}:{students:Student[]}){
     const extra=((target-cur)+360)%360;
     const newRot=rotation+extra+5*360;
     setRotation(newRot);
-    setTimeout(()=>{setWinner(active[wi]);setSpinning(false);},4200);
+    setTimeout(()=>{setWinner(remaining[wi]);setSpinning(false);},4200);
   }
 
-  if(N===0) return(
-    <div className="text-center py-12 text-gray-400">
-      <div className="text-4xl mb-2">😅</div>
-      <p>ไม่มีนักเรียนแล้ว</p>
-      <button onClick={()=>setRemoved(new Set())} className="mt-3 text-sm text-blue-500 underline">รีเซ็ตรายชื่อ</button>
-    </div>
-  );
-
   const CX=140,CY=140,R=128;
-  const sa=360/N;
+  const sa=N>0?360/N:360;
 
   return(
-    <div className="flex flex-col items-center gap-5">
-      <div className="relative select-none">
-        {/* Pointer */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1.5 z-10
-          w-0 h-0 border-l-[10px] border-r-[10px] border-b-[26px]
-          border-l-transparent border-r-transparent border-b-gray-900 drop-shadow"/>
-
-        {/* Wheel */}
-        <div style={{width:280,height:280,transform:`rotate(${rotation}deg)`,
-          transition:spinning?'transform 4s cubic-bezier(0.17,0.67,0.12,0.99)':'none',
-          filter:'drop-shadow(0 8px 24px rgba(0,0,0,0.18))',cursor:spinning?'default':'pointer'}}
-          onClick={spin}>
-          <svg width={280} height={280} viewBox="0 0 280 280">
-            {N===1?(
-              <circle cx={CX} cy={CY} r={R} fill={WHEEL_COLORS[0]}/>
-            ):active.map((_,i)=>{
-              const a1=i*sa, a2=(i+1)*sa;
-              const p1=polarToCart(CX,CY,R,a1);
-              const p2=polarToCart(CX,CY,R,a2);
-              const la=sa>180?1:0;
-              return(
-                <path key={i}
-                  d={`M${CX} ${CY} L${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A${R} ${R} 0 ${la} 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}Z`}
-                  fill={WHEEL_COLORS[i%WHEEL_COLORS.length]} stroke="white" strokeWidth={2}/>
-              );
-            })}
-
-            {/* Labels */}
-            {active.map((s,i)=>{
-              const mid=(i+0.5)*sa;
-              const tp=polarToCart(CX,CY,R*0.62,mid);
-              const fs=N>10?9:N>6?10:N>3?12:14;
-              const label=s.nickname.length>8?s.nickname.slice(0,7)+'…':s.nickname;
-              return(
-                <text key={s.id} x={tp.x} y={tp.y}
-                  textAnchor="middle" dominantBaseline="middle"
-                  fontSize={fs} fontWeight={700} fill="white"
-                  style={{filter:'drop-shadow(0 1px 2px rgba(0,0,0,0.5))'}}
-                  transform={`rotate(${mid},${tp.x},${tp.y})`}>
-                  {label}
-                </text>
-              );
-            })}
-
-            {/* Center */}
-            <circle cx={CX} cy={CY} r={30} fill="white"
-              style={{filter:'drop-shadow(0 2px 6px rgba(0,0,0,0.15))'}}/>
-            <text x={CX} y={CY} textAnchor="middle" dominantBaseline="middle" fontSize={20}>🎡</text>
-          </svg>
-        </div>
+    <div className="space-y-4">
+      {/* Item list editor */}
+      <div className="border border-gray-100 rounded-2xl p-4 bg-gray-50/50">
+        <button onClick={()=>setShowEditor(v=>!v)}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-600 w-full text-left mb-2">
+          <span>{showEditor?'▲':'▼'}</span>
+          <span>รายการในวงล้อ ({items.length} รายการ)</span>
+        </button>
+        {showEditor&&(
+          <ItemListEditor items={items} onChange={setItems} students={students}
+            placeholder="พิมพ์ชื่อ คำศัพท์ หัวข้อ หรืออื่น ๆ"/>
+        )}
       </div>
 
-      <button onClick={spin} disabled={spinning}
-        className="px-10 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-lg rounded-2xl shadow-lg transition-all active:scale-95">
-        {spinning?'⏳ กำลังหมุน…':'🎡 หมุนวงล้อ!'}
-      </button>
-
-      {winner&&(
-        <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-8 py-4 text-center animate-bounce">
-          <p className="text-xs text-yellow-600 font-medium mb-1">🎉 ได้รับเลือก!</p>
-          <p className="text-3xl font-black text-yellow-800">{winner.nickname}</p>
-          {winner.full_name&&<p className="text-sm text-yellow-600 mt-0.5">{winner.full_name}</p>}
-          <button onClick={()=>{setRemoved(p=>new Set([...p,winner.id]));setWinner(null);}}
-            className="mt-2 text-xs text-red-400 hover:text-red-600 underline">
-            ✕ ไม่เลือกซ้ำ (เอาออกจากวงล้อ)
-          </button>
+      {N===0?(
+        <div className="text-center py-12 text-gray-400">
+          <div className="text-4xl mb-2">🎡</div>
+          <p className="text-sm">เพิ่มรายการด้านบนเพื่อเริ่มหมุนวงล้อ</p>
         </div>
-      )}
+      ):(
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative select-none">
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1.5 z-10
+              w-0 h-0 border-l-[10px] border-r-[10px] border-b-[26px]
+              border-l-transparent border-r-transparent border-b-gray-900"/>
+            <div style={{width:280,height:280,transform:`rotate(${rotation}deg)`,
+              transition:spinning?'transform 4s cubic-bezier(0.17,0.67,0.12,0.99)':'none',
+              filter:'drop-shadow(0 8px 24px rgba(0,0,0,0.18))',cursor:spinning?'default':'pointer'}}
+              onClick={spin}>
+              <svg width={280} height={280} viewBox="0 0 280 280">
+                {N===1?(
+                  <circle cx={CX} cy={CY} r={R} fill={WHEEL_COLORS[0]}/>
+                ):remaining.map((_,i)=>{
+                  const a1=i*sa, a2=(i+1)*sa;
+                  const p1=polarToCart(CX,CY,R,a1), p2=polarToCart(CX,CY,R,a2);
+                  const la=sa>180?1:0;
+                  return(
+                    <path key={i}
+                      d={`M${CX} ${CY} L${p1.x.toFixed(1)} ${p1.y.toFixed(1)} A${R} ${R} 0 ${la} 1 ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}Z`}
+                      fill={WHEEL_COLORS[i%WHEEL_COLORS.length]} stroke="white" strokeWidth={2}/>
+                  );
+                })}
+                {remaining.map((item,i)=>{
+                  const mid=(i+0.5)*sa;
+                  const tp=polarToCart(CX,CY,R*0.62,mid);
+                  const fs=N>10?8:N>6?10:N>3?11:13;
+                  const label=item.length>9?item.slice(0,8)+'…':item;
+                  return(
+                    <text key={i} x={tp.x} y={tp.y}
+                      textAnchor="middle" dominantBaseline="middle"
+                      fontSize={fs} fontWeight={700} fill="white"
+                      style={{filter:'drop-shadow(0 1px 2px rgba(0,0,0,0.5))'}}
+                      transform={`rotate(${mid},${tp.x},${tp.y})`}>
+                      {label}
+                    </text>
+                  );
+                })}
+                <circle cx={CX} cy={CY} r={30} fill="white"
+                  style={{filter:'drop-shadow(0 2px 6px rgba(0,0,0,0.15))'}}/>
+                <text x={CX} y={CY} textAnchor="middle" dominantBaseline="middle" fontSize={20}>🎡</text>
+              </svg>
+            </div>
+          </div>
 
-      {removed.size>0&&(
-        <div className="w-full max-w-sm">
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-xs text-gray-400">เอาออกแล้ว ({removed.size} คน)</p>
-            <button onClick={()=>setRemoved(new Set())} className="text-xs text-blue-500 hover:underline">รีเซ็ต</button>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {students.filter(s=>removed.has(s.id)).map(s=>(
-              <span key={s.id} className="bg-gray-100 text-gray-400 text-xs px-2 py-0.5 rounded-full line-through">{s.nickname}</span>
-            ))}
-          </div>
+          <button onClick={spin} disabled={spinning}
+            className="px-10 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-lg rounded-2xl shadow-lg transition-all active:scale-95">
+            {spinning?'⏳ กำลังหมุน…':'🎡 หมุนวงล้อ!'}
+          </button>
+
+          {winner&&(
+            <div className="bg-yellow-50 border-2 border-yellow-300 rounded-2xl px-8 py-4 text-center">
+              <p className="text-xs text-yellow-600 font-medium mb-1">🎉 ได้รับเลือก!</p>
+              <p className="text-3xl font-black text-yellow-800">{winner}</p>
+              <div className="flex gap-3 justify-center mt-2">
+                <button onClick={()=>{setRemaining(r=>r.filter(x=>x!==winner));setWinner(null);}}
+                  className="text-xs text-red-400 hover:text-red-600 underline">
+                  ✕ ไม่เลือกซ้ำ
+                </button>
+                <button onClick={()=>setWinner(null)}
+                  className="text-xs text-gray-400 hover:text-gray-600 underline">
+                  ปิด
+                </button>
+              </div>
+            </div>
+          )}
+
+          {remaining.length<items.length&&(
+            <div className="flex items-center gap-3 text-xs text-gray-400">
+              <span>เหลือ {remaining.length}/{items.length} รายการ</span>
+              <button onClick={()=>setRemaining([...items])} className="text-blue-500 hover:underline">
+                รีเซ็ต
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -176,66 +266,86 @@ function SpinWheel({students}:{students:Student[]}){
 // ── Group Maker ───────────────────────────────────────────────────────────────
 
 function GroupMaker({students}:{students:Student[]}){
+  const [items,setItems]=useState<string[]>([]);
   const [numGroups,setNumGroups]=useState(2);
-  const [groups,setGroups]=useState<Student[][]>([]);
+  const [groups,setGroups]=useState<string[][]>([]);
+  const [showEditor,setShowEditor]=useState(true);
 
   function generate(){
-    const shuffled=[...students].sort(()=>Math.random()-0.5);
-    const result:Student[][]=Array.from({length:numGroups},()=>[]);
+    if(items.length<2) return;
+    const shuffled=[...items].sort(()=>Math.random()-0.5);
+    const result:string[][]=Array.from({length:numGroups},()=>[]);
     shuffled.forEach((s,i)=>result[i%numGroups].push(s));
     setGroups(result);
   }
 
-  const maxGroups=Math.max(2,Math.floor(students.length/2));
+  const maxGroups=Math.max(2,Math.floor(items.length/2));
 
   return(
-    <div className="space-y-5">
-      <div className="flex items-center gap-4 flex-wrap">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-gray-700">จำนวนกลุ่ม</label>
-          <button onClick={()=>setNumGroups(g=>Math.max(2,g-1))}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold transition-colors">−</button>
-          <span className="w-8 text-center font-bold text-lg">{numGroups}</span>
-          <button onClick={()=>setNumGroups(g=>Math.min(maxGroups,g+1))}
-            className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold transition-colors">+</button>
-        </div>
-        <p className="text-sm text-gray-400">
-          ({students.length} คน → กลุ่มละ ~{Math.ceil(students.length/numGroups)} คน)
-        </p>
-        <button onClick={generate}
-          className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl shadow transition-all active:scale-95 ml-auto">
-          🔀 สุ่มแบ่งกลุ่ม!
+    <div className="space-y-4">
+      {/* Item editor */}
+      <div className="border border-gray-100 rounded-2xl p-4 bg-gray-50/50">
+        <button onClick={()=>setShowEditor(v=>!v)}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-600 w-full text-left mb-2">
+          <span>{showEditor?'▲':'▼'}</span>
+          <span>รายการที่จะแบ่ง ({items.length} รายการ)</span>
         </button>
+        {showEditor&&(
+          <ItemListEditor items={items} onChange={v=>{setItems(v);setGroups([]);}} students={students}
+            placeholder="พิมพ์ชื่อ คำศัพท์ หัวข้อ หรืออื่น ๆ"/>
+        )}
       </div>
 
-      {groups.length>0?(
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-          {groups.map((group,gi)=>{
-            const c=TEAM_COLORS[gi%TEAM_COLORS.length];
-            return(
-              <div key={gi} style={{background:c.light,borderColor:c.dark}} className="border-2 rounded-2xl p-4">
-                <p style={{color:c.text}} className="font-bold text-sm mb-2">
-                  กลุ่ม {gi+1} <span className="font-normal opacity-60">({group.length} คน)</span>
-                </p>
-                <div className="space-y-1.5">
-                  {group.map(s=>(
-                    <div key={s.id} className="flex items-center gap-2">
-                      <div style={{background:c.dark}}
-                        className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-                        {s.nickname[0]}
-                      </div>
-                      <span style={{color:c.text}} className="text-sm font-medium">{s.nickname}</span>
+      {items.length>=2?(
+        <>
+          <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">จำนวนกลุ่ม</label>
+              <button onClick={()=>setNumGroups(g=>Math.max(2,g-1))}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold transition-colors">−</button>
+              <span className="w-8 text-center font-bold text-lg">{Math.min(numGroups,maxGroups)}</span>
+              <button onClick={()=>setNumGroups(g=>Math.min(maxGroups,g+1))}
+                className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold transition-colors">+</button>
+            </div>
+            <p className="text-sm text-gray-400">
+              ({items.length} รายการ → กลุ่มละ ~{Math.ceil(items.length/Math.min(numGroups,maxGroups))} รายการ)
+            </p>
+            <button onClick={generate}
+              className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold rounded-xl shadow transition-all active:scale-95 ml-auto">
+              🔀 สุ่มแบ่งกลุ่ม!
+            </button>
+          </div>
+
+          {groups.length>0&&(
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {groups.map((group,gi)=>{
+                const c=TEAM_COLORS[gi%TEAM_COLORS.length];
+                return(
+                  <div key={gi} style={{background:c.light,borderColor:c.dark}} className="border-2 rounded-2xl p-4">
+                    <p style={{color:c.text}} className="font-bold text-sm mb-2">
+                      กลุ่ม {gi+1} <span className="font-normal opacity-60">({group.length})</span>
+                    </p>
+                    <div className="space-y-1.5">
+                      {group.map((item,ii)=>(
+                        <div key={ii} className="flex items-center gap-2">
+                          <div style={{background:c.dark}}
+                            className="w-5 h-5 rounded-full flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                            {ii+1}
+                          </div>
+                          <span style={{color:c.text}} className="text-sm font-medium">{item}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       ):(
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-10 text-gray-400">
           <div className="text-4xl mb-2">👥</div>
-          <p className="text-sm">กด "สุ่มแบ่งกลุ่ม!" เพื่อแบ่งกลุ่มแบบสุ่ม</p>
+          <p className="text-sm">เพิ่มรายการอย่างน้อย 2 รายการเพื่อแบ่งกลุ่ม</p>
         </div>
       )}
     </div>
@@ -258,23 +368,17 @@ function TimerPanel(){
   const clearInt=useCallback(()=>{if(intRef.current)clearInterval(intRef.current);},[]);
   useEffect(()=>()=>clearInt(),[clearInt]);
 
-  function startCountdown(from?:number){
-    const total=from??mins*60+secs;
-    if(!total) return;
-    totalRef.current=total;
-    setTimeLeft(total); setDone(false); setRunning(true);
-    clearInt();
-    intRef.current=setInterval(()=>{
-      setTimeLeft(t=>{
-        if(t===null||t<=1){clearInt();setRunning(false);setDone(true);return 0;}
-        return t-1;
-      });
-    },1000);
+  function startCountdown(){
+    const total=mins*60+secs; if(!total) return;
+    totalRef.current=total; setTimeLeft(total); setDone(false); setRunning(true); clearInt();
+    intRef.current=setInterval(()=>setTimeLeft(t=>{
+      if(t===null||t<=1){clearInt();setRunning(false);setDone(true);return 0;}
+      return t-1;
+    }),1000);
   }
 
   function startStopwatch(){
-    setElapsed(0); setRunning(true);
-    clearInt();
+    setElapsed(0); setRunning(true); clearInt();
     intRef.current=setInterval(()=>setElapsed(e=>e+1),1000);
   }
 
@@ -283,12 +387,10 @@ function TimerPanel(){
   function resume(){
     setRunning(true); clearInt();
     if(mode==='countdown'){
-      intRef.current=setInterval(()=>{
-        setTimeLeft(t=>{
-          if(t===null||t<=1){clearInt();setRunning(false);setDone(true);return 0;}
-          return t-1;
-        });
-      },1000);
+      intRef.current=setInterval(()=>setTimeLeft(t=>{
+        if(t===null||t<=1){clearInt();setRunning(false);setDone(true);return 0;}
+        return t-1;
+      }),1000);
     } else {
       intRef.current=setInterval(()=>setElapsed(e=>e+1),1000);
     }
@@ -297,9 +399,7 @@ function TimerPanel(){
   function reset(){clearInt();setRunning(false);setTimeLeft(null);setElapsed(0);setDone(false);}
 
   function fmt(s:number){
-    const m=Math.floor(s/60).toString().padStart(2,'0');
-    const sc=(s%60).toString().padStart(2,'0');
-    return `${m}:${sc}`;
+    return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
   }
 
   const started=timeLeft!==null||elapsed>0;
@@ -310,7 +410,6 @@ function TimerPanel(){
 
   return(
     <div className="flex flex-col items-center gap-5">
-      {/* Mode toggle */}
       <div className="flex gap-1 bg-gray-100 rounded-full p-1">
         {(['countdown','stopwatch'] as const).map(m=>(
           <button key={m} onClick={()=>{reset();setMode(m);}}
@@ -320,13 +419,12 @@ function TimerPanel(){
         ))}
       </div>
 
-      {/* Display */}
       {mode==='countdown'&&started?(
         <svg width={260} height={260} viewBox="0 0 260 260">
           <circle cx={130} cy={130} r={110} fill="none" stroke="#E5E7EB" strokeWidth={12}/>
           <circle cx={130} cy={130} r={110} fill="none" stroke={timerColor} strokeWidth={12}
-            strokeDasharray={C} strokeDashoffset={C*(1-progress)}
-            strokeLinecap="round" transform="rotate(-90 130 130)"
+            strokeDasharray={C} strokeDashoffset={C*(1-progress)} strokeLinecap="round"
+            transform="rotate(-90 130 130)"
             style={{transition:'stroke-dashoffset 1s linear,stroke 0.5s ease'}}/>
           <text x={130} y={done?120:130} textAnchor="middle" dominantBaseline="middle"
             fontSize={52} fontWeight={900} fill={done?'#EF4444':'#1F2937'} fontFamily="monospace">
@@ -340,27 +438,20 @@ function TimerPanel(){
         </div>
       )}
 
-      {/* Input (countdown only, before start) */}
       {mode==='countdown'&&!started&&(
         <>
           <div className="flex items-end gap-3 text-3xl font-black">
-            <div className="flex flex-col items-center gap-1">
-              <button onClick={()=>setMins(m=>Math.min(99,m+1))} className="text-gray-300 hover:text-gray-500 text-xl leading-none">▲</button>
-              <input type="number" min={0} max={99} value={mins}
-                onChange={e=>setMins(Math.max(0,Math.min(99,parseInt(e.target.value)||0)))}
-                className="w-16 text-center border-b-2 border-gray-300 focus:border-teal-500 outline-none bg-transparent"/>
-              <button onClick={()=>setMins(m=>Math.max(0,m-1))} className="text-gray-300 hover:text-gray-500 text-xl leading-none">▼</button>
-              <span className="text-xs text-gray-400 font-normal mt-0.5">นาที</span>
-            </div>
-            <span className="text-gray-300 mb-7">:</span>
-            <div className="flex flex-col items-center gap-1">
-              <button onClick={()=>setSecs(s=>Math.min(59,s+1))} className="text-gray-300 hover:text-gray-500 text-xl leading-none">▲</button>
-              <input type="number" min={0} max={59} value={secs}
-                onChange={e=>setSecs(Math.max(0,Math.min(59,parseInt(e.target.value)||0)))}
-                className="w-16 text-center border-b-2 border-gray-300 focus:border-teal-500 outline-none bg-transparent"/>
-              <button onClick={()=>setSecs(s=>Math.max(0,s-1))} className="text-gray-300 hover:text-gray-500 text-xl leading-none">▼</button>
-              <span className="text-xs text-gray-400 font-normal mt-0.5">วินาที</span>
-            </div>
+            {[{v:mins,set:setMins,max:99,label:'นาที'},{v:secs,set:setSecs,max:59,label:'วินาที'}].map((f,i)=>(
+              <div key={i} className="flex flex-col items-center gap-1">
+                <button onClick={()=>f.set((x:number)=>Math.min(f.max,x+1))} className="text-gray-300 hover:text-gray-500 text-xl">▲</button>
+                <input type="number" min={0} max={f.max} value={f.v}
+                  onChange={e=>f.set(Math.max(0,Math.min(f.max,parseInt(e.target.value)||0)))}
+                  className="w-16 text-center border-b-2 border-gray-300 focus:border-teal-500 outline-none bg-transparent"/>
+                <button onClick={()=>f.set((x:number)=>Math.max(0,x-1))} className="text-gray-300 hover:text-gray-500 text-xl">▼</button>
+                <span className="text-xs text-gray-400 font-normal">{f.label}</span>
+              </div>
+            ))}
+            <span className="text-gray-300 pb-8">:</span>
           </div>
           <div className="flex gap-2 flex-wrap justify-center">
             {[1,2,3,5,10,15].map(m=>(
@@ -373,7 +464,6 @@ function TimerPanel(){
         </>
       )}
 
-      {/* Controls */}
       <div className="flex gap-3">
         {!running&&!started&&(
           <button onClick={()=>mode==='countdown'?startCountdown():startStopwatch()}
@@ -381,24 +471,9 @@ function TimerPanel(){
             ▶ เริ่ม
           </button>
         )}
-        {running&&(
-          <button onClick={pause}
-            className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow transition-all active:scale-95">
-            ⏸ หยุด
-          </button>
-        )}
-        {!running&&started&&!done&&(
-          <button onClick={resume}
-            className="px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl shadow transition-all active:scale-95">
-            ▶ ต่อ
-          </button>
-        )}
-        {started&&(
-          <button onClick={reset}
-            className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl transition-all active:scale-95">
-            🔄 รีเซ็ต
-          </button>
-        )}
+        {running&&<button onClick={pause} className="px-8 py-3 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-2xl shadow transition-all active:scale-95">⏸ หยุด</button>}
+        {!running&&started&&!done&&<button onClick={resume} className="px-8 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-2xl shadow transition-all active:scale-95">▶ ต่อ</button>}
+        {started&&<button onClick={reset} className="px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-2xl transition-all active:scale-95">🔄 รีเซ็ต</button>}
       </div>
     </div>
   );
@@ -410,12 +485,22 @@ interface Team{name:string;score:number;colorIdx:number;}
 
 function ScoreboardPanel(){
   const [numTeams,setNumTeams]=useState(2);
+  const [draftNames,setDraftNames]=useState<string[]>([]);
   const [teams,setTeams]=useState<Team[]>([]);
   const [started,setStarted]=useState(false);
   const [flash,setFlash]=useState<number|null>(null);
 
+  // initialise draft names whenever numTeams changes
+  useEffect(()=>{
+    setDraftNames(prev=>Array.from({length:numTeams},(_,i)=>prev[i]??''));
+  },[numTeams]);
+
   function startGame(){
-    setTeams(Array.from({length:numTeams},(_,i)=>({name:TEAM_COLORS[i].name,score:0,colorIdx:i})));
+    setTeams(Array.from({length:numTeams},(_,i)=>({
+      name:draftNames[i]?.trim()||TEAM_COLORS[i%TEAM_COLORS.length].defaultName,
+      score:0,
+      colorIdx:i,
+    })));
     setStarted(true);
   }
 
@@ -428,17 +513,39 @@ function ScoreboardPanel(){
   const sorted=[...teams].sort((a,b)=>b.score-a.score);
 
   if(!started) return(
-    <div className="flex flex-col items-center gap-6 py-4">
+    <div className="space-y-5">
       <div className="flex items-center gap-3">
         <label className="text-sm font-medium text-gray-700">จำนวนทีม</label>
         <button onClick={()=>setNumTeams(n=>Math.max(2,n-1))} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold transition-colors">−</button>
         <span className="w-8 text-center font-bold text-lg">{numTeams}</span>
         <button onClick={()=>setNumTeams(n=>Math.min(6,n+1))} className="w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 font-bold transition-colors">+</button>
       </div>
-      <button onClick={startGame}
-        className="px-10 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-lg rounded-2xl shadow transition-all active:scale-95">
-        🏆 เริ่มให้คะแนน
-      </button>
+
+      {/* Team name inputs */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        {Array.from({length:numTeams},(_,i)=>{
+          const c=TEAM_COLORS[i%TEAM_COLORS.length];
+          return(
+            <div key={i} style={{borderColor:c.dark,background:c.light}} className="border-2 rounded-xl px-3 py-2 flex items-center gap-2">
+              <div style={{background:c.dark}} className="w-3 h-3 rounded-full shrink-0"/>
+              <input
+                value={draftNames[i]??''}
+                onChange={e=>setDraftNames(prev=>{const n=[...prev];n[i]=e.target.value;return n;})}
+                placeholder={c.defaultName}
+                style={{color:c.text}}
+                className="bg-transparent text-sm font-semibold outline-none w-full placeholder:font-normal placeholder:text-gray-400"
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="flex justify-center">
+        <button onClick={startGame}
+          className="px-10 py-3 bg-teal-600 hover:bg-teal-700 text-white font-bold text-lg rounded-2xl shadow transition-all active:scale-95">
+          🏆 เริ่มให้คะแนน
+        </button>
+      </div>
     </div>
   );
 
@@ -451,33 +558,28 @@ function ScoreboardPanel(){
             <div key={i} style={{background:flash===i?c.dark:c.light,borderColor:c.dark}}
               className="border-2 rounded-2xl p-4 transition-colors duration-300">
               <div className="flex items-center justify-between gap-2 mb-2">
-                <input value={team.name} onChange={e=>setTeams(prev=>prev.map((t,idx)=>idx===i?{...t,name:e.target.value}:t))}
+                <input value={team.name}
+                  onChange={e=>setTeams(prev=>prev.map((t,idx)=>idx===i?{...t,name:e.target.value}:t))}
                   style={{color:flash===i?'white':c.text}}
                   className="font-bold text-base bg-transparent border-none outline-none flex-1 transition-colors"/>
                 <span style={{color:flash===i?'white':c.text}} className="text-4xl font-black transition-colors">{team.score}</span>
               </div>
               <div className="w-full h-2.5 bg-white/60 rounded-full mb-3">
-                <div style={{width:`${(team.score/maxScore)*100}%`,background:c.dark}}
-                  className="h-full rounded-full transition-all duration-500"/>
+                <div style={{width:`${(team.score/maxScore)*100}%`,background:c.dark}} className="h-full rounded-full transition-all duration-500"/>
               </div>
               <div className="flex gap-2">
                 {[1,5].map(d=>(
                   <button key={d} onClick={()=>addScore(i,d)} style={{background:c.dark}}
-                    className="flex-1 text-white font-bold py-2 rounded-xl text-sm active:scale-95 transition-transform">
-                    +{d}
-                  </button>
+                    className="flex-1 text-white font-bold py-2 rounded-xl text-sm active:scale-95 transition-transform">+{d}</button>
                 ))}
                 <button onClick={()=>addScore(i,-1)} style={{borderColor:c.dark,color:c.text}}
-                  className="flex-1 bg-white border-2 font-bold py-2 rounded-xl text-sm active:scale-95 transition-transform">
-                  −1
-                </button>
+                  className="flex-1 bg-white border-2 font-bold py-2 rounded-xl text-sm active:scale-95 transition-transform">−1</button>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Leaderboard */}
       {teams.some(t=>t.score>0)&&(
         <div className="bg-gray-50 rounded-2xl p-4">
           <p className="text-xs font-bold text-gray-500 mb-2 tracking-widest">LEADERBOARD</p>
@@ -519,8 +621,7 @@ function Die({value,rolling}:{value:number;rolling:boolean}){
       position:'relative',transform:rolling?'scale(0.95)':'scale(1)',transition:'transform 0.08s'}}>
       {dots.map(([x,y],i)=>(
         <div key={i} style={{position:'absolute',left:`${x}%`,top:`${y}%`,
-          transform:'translate(-50%,-50%)',width:18,height:18,
-          borderRadius:'50%',background:'#1F2937'}}/>
+          transform:'translate(-50%,-50%)',width:18,height:18,borderRadius:'50%',background:'#1F2937'}}/>
       ))}
     </div>
   );
@@ -535,15 +636,9 @@ function DicePanel(){
     if(rolling) return;
     setRolling(true);
     let tick=0;
-    const max=14;
     const id=setInterval(()=>{
       setValues(Array.from({length:4},()=>Math.ceil(Math.random()*6)));
-      tick++;
-      if(tick>=max){
-        clearInterval(id);
-        setValues(Array.from({length:4},()=>Math.ceil(Math.random()*6)));
-        setRolling(false);
-      }
+      if(++tick>=14){clearInterval(id);setValues(Array.from({length:4},()=>Math.ceil(Math.random()*6)));setRolling(false);}
     },70);
   }
 
@@ -560,19 +655,12 @@ function DicePanel(){
           </button>
         ))}
       </div>
-
       <div className="flex gap-4 flex-wrap justify-center">
-        {Array.from({length:numDice},(_,i)=>(
-          <Die key={i} value={values[i]} rolling={rolling}/>
-        ))}
+        {Array.from({length:numDice},(_,i)=><Die key={i} value={values[i]} rolling={rolling}/>)}
       </div>
-
       {numDice>1&&!rolling&&(
-        <p className="text-base font-semibold text-gray-500">
-          รวม: <span className="text-4xl font-black text-teal-600">{total}</span>
-        </p>
+        <p className="text-base font-semibold text-gray-500">รวม: <span className="text-4xl font-black text-teal-600">{total}</span></p>
       )}
-
       <button onClick={roll} disabled={rolling}
         className="px-10 py-3 bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-bold text-lg rounded-2xl shadow-lg transition-all active:scale-95">
         {rolling?'🎲 กำลังทอย…':'🎲 ทอยลูกเต๋า!'}
@@ -606,12 +694,10 @@ export default function ClassroomToolsPage(){
           <div className="flex items-center gap-3 mb-3">
             <a href="/teacher" className="text-gray-400 hover:text-gray-600 text-lg">←</a>
             <h1 className="text-lg font-bold text-gray-800">🎮 เครื่องมือสอน</h1>
-            <span className="text-xs text-gray-400 ml-1">({filtered.length} คน)</span>
           </div>
-
           {groupKeys.length>1&&(
             <div className="flex items-center gap-2 flex-wrap mb-3">
-              <span className="text-xs text-gray-400">กลุ่ม:</span>
+              <span className="text-xs text-gray-400">กรองนักเรียน:</span>
               {groupKeys.map(g=>(
                 <button key={g} onClick={()=>setSelectedGroups(prev=>prev.includes(g)?prev.filter(x=>x!==g):[...prev,g])}
                   className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedGroups.includes(g)?'bg-teal-600 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
@@ -620,7 +706,6 @@ export default function ClassroomToolsPage(){
               ))}
             </div>
           )}
-
           <div className="flex gap-1.5 overflow-x-auto pb-0.5">
             {TOOLS.map(t=>(
               <button key={t.id} onClick={()=>setActiveTool(t.id)}
