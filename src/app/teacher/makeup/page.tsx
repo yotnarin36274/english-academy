@@ -68,7 +68,7 @@ export default function MakeupPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="flex items-center gap-3 mb-3">
             <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">🔁 Make-up Classes</h1>
@@ -100,7 +100,7 @@ export default function MakeupPage() {
         )}
 
         {/* List */}
-        <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 items-start">
           {filtered.map(mk => (
             <div key={mk.id} className={`bg-white rounded-2xl shadow-sm border p-4 ${mk.completed ? 'opacity-60 border-green-100' : 'border-amber-100'}`}>
               <div className="flex items-start gap-3">

@@ -194,7 +194,7 @@ export default function MissingHomeworkPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <div className="flex items-center gap-3 mb-3">
             <a href="/teacher" className="text-gray-400 hover:text-gray-600 text-lg">←</a>
             <h1 className="text-lg font-bold text-gray-800">📌 ยังไม่ส่งการบ้าน</h1>

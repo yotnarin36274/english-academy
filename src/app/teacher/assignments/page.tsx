@@ -205,7 +205,7 @@ export default function TeacherAssignmentsPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">📝 จัดการการบ้าน</h1>
@@ -226,7 +226,7 @@ export default function TeacherAssignmentsPage() {
 
         {/* Create form */}
         {showForm && (
-          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4 max-w-2xl mx-auto w-full">
             <h2 className="font-semibold text-gray-800">สร้างการบ้านใหม่</h2>
 
             <div>
@@ -419,6 +419,7 @@ export default function TeacherAssignmentsPage() {
         )}
 
         {/* Assignment list */}
+        <div className="grid gap-4 sm:grid-cols-2 items-start">
         {assignments.map(a => {
           const hasIndividuals = (a.target_student_ids ?? []).length > 0;
           const namedStudents = hasIndividuals ? allStudents.filter(s => a.target_student_ids.includes(s.id)) : [];
@@ -516,6 +517,7 @@ export default function TeacherAssignmentsPage() {
             </div>
           );
         })}
+        </div>
 
         {assignments.length === 0 && (
           <div className="text-center py-16 text-gray-400">

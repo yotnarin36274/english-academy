@@ -361,7 +361,7 @@ export default function ParentPortalPage() {
     <main className="min-h-screen bg-gray-50 pb-10">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#1D9E75] to-green-500 text-white px-4 py-5">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-6xl mx-auto">
           <p className="text-green-100 text-sm">ENG SPARK ⚡ — รายงานผู้ปกครอง</p>
           <h1 className="text-xl font-bold mt-1">น้อง{student.nickname}</h1>
           <p className="text-green-100 text-sm">{student.full_name ? `${student.full_name} · ` : ''}{student.grade}</p>
@@ -395,7 +395,9 @@ export default function ParentPortalPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 mt-5 space-y-5">
+      <div className="max-w-6xl mx-auto px-4 mt-5">
+        <div className="grid gap-5 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-5">
 
         {/* Course + Session history */}
         {(sessions.length > 0 || makeups.length > 0) && (
@@ -585,6 +587,9 @@ export default function ParentPortalPage() {
           </div>
         )}
 
+          </div>
+          <div className="space-y-5">
+
         {/* Assignment list */}
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -673,6 +678,9 @@ export default function ParentPortalPage() {
               <p>ยังไม่มีการบ้านครับ</p>
             </div>
           )}
+        </div>
+
+          </div>
         </div>
 
         <p className="text-center text-xs text-gray-400">

@@ -80,7 +80,7 @@ export default function TeacherStudentsPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">👥 นักเรียน ({students.filter(s => s.is_active).length})</h1>
@@ -174,7 +174,7 @@ export default function TeacherStudentsPage() {
           className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white" />
 
         {/* Student list */}
-        <div className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2 items-start">
           {filtered.map(stu => (
             <div key={stu.id} className="flex items-center gap-2">
               <button onClick={() => router.push(`/teacher/students/${stu.id}`)}

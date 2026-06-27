@@ -3,7 +3,17 @@
     "allow": [
       "Bash(dir /b)",
       "Bash(dir /b app)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(git commit *)",
+      "Bash(git config *)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(vercel --version)",
+      "Bash(npm install *)",
+      "Bash(vercel link *)",
+      "Bash(vercel *)"
     ]
   }
 }

@@ -280,7 +280,7 @@ export default function StudentHomeworkPage() {
     <main className="min-h-screen bg-gray-50 pb-10">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-5">
-        <div className="max-w-lg mx-auto">
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-start justify-between">
             <div>
               <p className="text-blue-100 text-sm">ENG SPARK ⚡</p>
@@ -296,7 +296,9 @@ export default function StudentHomeworkPage() {
         </div>
       </div>
 
-      <div className="max-w-lg mx-auto px-4 mt-5 space-y-6">
+      <div className="max-w-6xl mx-auto px-4 mt-5">
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <div className="space-y-6">
 
         {/* Course + Session history */}
         {(sessions.length > 0 || makeups.length > 0) && (
@@ -484,6 +486,9 @@ export default function StudentHomeworkPage() {
           </section>
         )}
 
+          </div>
+          <div className="space-y-6">
+
         {/* Pending */}
         {pending.length > 0 && (
           <section>
@@ -600,6 +605,9 @@ export default function StudentHomeworkPage() {
             </div>
           </section>
         )}
+
+          </div>
+        </div>
 
         {assignments.length === 0 && sessions.length === 0 && (
           <div className="text-center py-16 text-gray-400">

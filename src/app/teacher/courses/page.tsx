@@ -102,7 +102,7 @@ export default function CoursesPage() {
   return (
     <main className="min-h-screen bg-gray-50 pb-10">
       <div className="bg-white border-b px-4 py-4 sticky top-0 z-10">
-        <div className="max-w-2xl mx-auto flex items-center justify-between">
+        <div className="max-w-5xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <a href="/teacher" className="text-gray-400 hover:text-gray-600">←</a>
             <h1 className="text-lg font-bold text-gray-800">📚 คอร์สทั้งหมด</h1>
@@ -118,7 +118,7 @@ export default function CoursesPage() {
 
         {/* Create / Edit form */}
         {showForm && (
-          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4 border-2 border-blue-200">
+          <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4 border-2 border-blue-200 max-w-2xl mx-auto w-full">
             <h2 className="font-semibold text-gray-800">{editingId ? '✏️ แก้ไขคอร์ส' : '📚 สร้างคอร์สใหม่'}</h2>
 
             <div>
@@ -212,7 +212,7 @@ export default function CoursesPage() {
             <p className="text-sm mt-1">กด "+ สร้างคอร์ส" เพื่อเริ่มต้นครับ</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 items-start">
             {courses.map(c => (
               <div key={c.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                 {c.cover_image_url && (
