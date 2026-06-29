@@ -620,6 +620,27 @@ export default function ParentPortalPage() {
                     </span>
                   </div>
 
+                  {(a.attachments?.length ?? 0) > 0 && (
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-xs font-medium text-indigo-600">📎 ไฟล์จากครู (กดเพื่อเปิด/โหลด)</p>
+                      {a.attachments.map((att, ai) => {
+                        const dl = driveDownloadUrl(att.url);
+                        return (
+                          <div key={ai} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2">
+                            <span className="text-lg shrink-0">{FILE_ICON[guessType(att.name)]}</span>
+                            <span className="flex-1 text-sm text-gray-700 truncate">{att.name}</span>
+                            <a href={att.url} target="_blank" rel="noreferrer"
+                              className="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-100">เปิด</a>
+                            {dl && (
+                              <a href={dl} target="_blank" rel="noreferrer"
+                                className="shrink-0 text-xs font-medium text-green-600 hover:text-green-800 px-2 py-1 rounded-lg hover:bg-green-100">⬇️ โหลด</a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
                   {sub && (
                     <>
                       <p className="text-xs text-gray-400 mt-1">

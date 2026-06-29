@@ -1,10 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { db } from '@/lib/supabase';
 import type { Assignment, Student, Course, ClassSession } from '@/lib/db';
+import { loadGoogleScript, requestAccessToken, uploadAssignmentFile } from '@/lib/googleDrive';
 
 const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
+
+function fileEmoji(name: string): string {
+  const n = name.toLowerCase();
+  if (/\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(n)) return '🖼️';
+  if (/\.pdf$/.test(n)) return '📄';
+  if (/\.(mp4|mov|webm|avi|m4v|mkv)$/.test(n)) return '🎥';
+  if (/\.(mp3|m4a|wav|aac|ogg)$/.test(n)) return '🎵';
+  if (/\.(doc|docx)$/.test(n)) return '📝';
+  if (/\.(xls|xlsx|csv)$/.test(n)) return '📊';
+  if (/\.(ppt|pptx)$/.test(n)) return '📽️';
+  return '📁';
+}
 
 type TargetMode = 'groups' | 'students' | 'session';
 
@@ -29,6 +43,12 @@ export default function TeacherAssignmentsPage() {
   const [selectedSessionId, setSelectedSessionId] = useState('');
   const [sessionStudentIds, setSessionStudentIds] = useState<string[]>([]);
 
+  // Google Drive attachments
+  const [attachments, setAttachments] = useState<{ url: string; name: string }[]>([]);
+  const [currentAttUpload, setCurrentAttUpload] = useState<{ name: string; progress: number } | null>(null);
+  const attachFileRef = useRef<HTMLInputElement>(null);
+  const tokenRef = useRef<{ value: string; expiry: number } | null>(null);
+
   const [saving, setSaving] = useState(false);
   const [notifyStatus, setNotifyStatus] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -43,7 +63,53 @@ export default function TeacherAssignmentsPage() {
     load();
     loadStudents();
     loadCourses();
+    loadGoogleScript();
   }, []);
+
+  async function getToken(): Promise<string> {
+    if (tokenRef.current && tokenRef.current.expiry > Date.now()) return tokenRef.current.value;
+    if (!GOOGLE_CLIENT_ID) throw new Error('ยังไม่ได้ตั้งค่า NEXT_PUBLIC_GOOGLE_CLIENT_ID');
+    await loadGoogleScript();
+    const token = await requestAccessToken(GOOGLE_CLIENT_ID);
+    tokenRef.current = { value: token, expiry: Date.now() + 55 * 60 * 1000 };
+    return token;
+  }
+
+  // Called from a direct button click so the browser allows the OAuth popup
+  async function handleAttachClick() {
+    setCurrentAttUpload({ name: 'กำลังเชื่อมต่อ Google Drive...', progress: 0 });
+    try {
+      await getToken();
+      setCurrentAttUpload(null);
+      attachFileRef.current?.click();
+    } catch (err) {
+      setCurrentAttUpload(null);
+      alert('เชื่อมต่อ Google Drive ไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  async function uploadAttachFiles(files: File[]) {
+    try {
+      const token = await getToken();
+      const newAtts: { url: string; name: string }[] = [];
+      for (const file of files) {
+        setCurrentAttUpload({ name: file.name, progress: 0 });
+        const url = await uploadAssignmentFile(file, title.trim(), token, (pct) => {
+          setCurrentAttUpload({ name: file.name, progress: pct });
+        });
+        newAtts.push({ url, name: file.name });
+      }
+      setAttachments(prev => [...prev, ...newAtts]);
+      setCurrentAttUpload(null);
+    } catch (err) {
+      setCurrentAttUpload(null);
+      alert('อัปโหลดไม่สำเร็จ: ' + (err instanceof Error ? err.message : String(err)));
+    }
+  }
+
+  function removeAttachment(idx: number) {
+    setAttachments(prev => prev.filter((_, i) => i !== idx));
+  }
 
   async function load() {
     const { data } = await db().from('assignments').select('*').order('created_at', { ascending: false });
@@ -121,6 +187,7 @@ export default function TeacherAssignmentsPage() {
     setTargetMode('groups'); setTargetGroups([]); setTargetStudentIds([]); setStudentSearch('');
     setSelectedCourseId(''); setSelectedSessionId(''); setSessionStudentIds([]);
     setCourseSessions([]);
+    setAttachments([]); setCurrentAttUpload(null);
   }
 
   async function createAssignment() {
@@ -141,6 +208,9 @@ export default function TeacherAssignmentsPage() {
       target_groups: [],
       target_student_ids: [],
     };
+    // Only send the attachments column when files exist, so creation keeps
+    // working even before the DB column is added.
+    if (attachments.length > 0) payload.attachments = attachments;
 
     if (targetMode === 'groups') {
       payload.target_groups = targetGroups;
@@ -241,6 +311,43 @@ export default function TeacherAssignmentsPage() {
               <textarea value={description} onChange={e => setDescription(e.target.value)}
                 placeholder="คำแนะนำเพิ่มเติม..."
                 className="mt-1 w-full border border-gray-300 rounded-xl px-4 py-3 text-sm resize-none h-20 focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            </div>
+
+            {/* Google Drive attachments */}
+            <div>
+              <label className="text-sm font-medium text-gray-700 block mb-1">📎 ไฟล์แนบ (Google Drive)</label>
+              <p className="text-xs text-gray-400 mb-2">นักเรียนและผู้ปกครองจะเห็นปุ่มเปิด/ดาวน์โหลดไฟล์นี้ในหน้าการบ้าน</p>
+
+              {attachments.length > 0 && (
+                <div className="space-y-1.5 mb-2">
+                  {attachments.map((att, i) => (
+                    <div key={i} className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                      <span className="text-lg shrink-0">{fileEmoji(att.name)}</span>
+                      <span className="flex-1 text-sm text-gray-700 truncate">{att.name}</span>
+                      <button type="button" onClick={() => removeAttachment(i)}
+                        className="shrink-0 text-red-400 hover:text-red-600 text-sm px-1">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {currentAttUpload ? (
+                <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+                  <p className="text-xs text-blue-600 truncate">⏳ {currentAttUpload.name}</p>
+                  <div className="w-full bg-blue-100 rounded-full h-1.5 mt-1.5">
+                    <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${currentAttUpload.progress}%` }} />
+                  </div>
+                </div>
+              ) : (
+                <button type="button" onClick={handleAttachClick}
+                  className="w-full border-2 border-dashed border-gray-300 rounded-xl py-3 text-sm text-gray-500 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                  + แนบไฟล์จาก Google Drive
+                </button>
+              )}
+
+              <input ref={attachFileRef} type="file" multiple className="hidden"
+                accept="image/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,video/*,audio/*"
+                onChange={e => { const f = Array.from(e.target.files ?? []); if (f.length) uploadAttachFiles(f); e.target.value = ''; }} />
             </div>
 
             <div className="flex gap-3">
@@ -496,6 +603,9 @@ export default function TeacherAssignmentsPage() {
                       </span>
                     )}
                     <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">เต็ม {a.max_score}</span>
+                    {(a.attachments?.length ?? 0) > 0 && (
+                      <span className="text-xs bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full">📎 {a.attachments.length} ไฟล์</span>
+                    )}
                     {a.due_date && (
                       <span className="text-xs bg-red-50 text-red-500 px-2 py-0.5 rounded-full">
                         📅 {new Date(a.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}

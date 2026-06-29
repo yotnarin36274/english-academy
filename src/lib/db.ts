@@ -75,6 +75,7 @@ export interface Assignment {
   is_active: boolean;
   session_id: string | null;
   course_id: string | null;
+  attachments: { url: string; name: string }[];
 }
 
 export interface HomeworkSubmission {

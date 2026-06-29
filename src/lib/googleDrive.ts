@@ -178,3 +178,11 @@ export function uploadSessionAttachment(
 ): Promise<string> {
   return uploadToSessionFolder(file, 'Attachments', sessionTopic, sessionDate, token, onProgress);
 }
+
+export function uploadAssignmentFile(
+  file: File, assignmentTitle: string,
+  token: string, onProgress: (pct: number) => void,
+): Promise<string> {
+  const today = new Date().toISOString().slice(0, 10);
+  return uploadToSessionFolder(file, 'Homework', assignmentTitle || 'การบ้าน', today, token, onProgress);
+}

@@ -42,6 +42,42 @@ function isImage(name: string): boolean {
   return /\.(jpg|jpeg|png|gif|webp|bmp|heic)$/i.test(name);
 }
 
+function fileEmoji(name: string): string {
+  const n = name.toLowerCase();
+  if (/\.(jpg|jpeg|png|gif|webp|heic|bmp)$/.test(n)) return '🖼️';
+  if (/\.pdf$/.test(n)) return '📄';
+  if (/\.(mp4|mov|webm|avi|m4v|mkv)$/.test(n)) return '🎥';
+  if (/\.(mp3|m4a|wav|aac|ogg)$/.test(n)) return '🎵';
+  if (/\.(doc|docx)$/.test(n)) return '📝';
+  if (/\.(xls|xlsx|csv)$/.test(n)) return '📊';
+  if (/\.(ppt|pptx)$/.test(n)) return '📽️';
+  return '📁';
+}
+
+function TeacherAttachments({ atts }: { atts?: { url: string; name: string }[] }) {
+  if (!atts?.length) return null;
+  return (
+    <div className="mt-3 space-y-1.5">
+      <p className="text-xs font-medium text-indigo-600">📎 ไฟล์จากครู (กดเพื่อเปิด/โหลด)</p>
+      {atts.map((att, i) => {
+        const dl = driveDownloadUrl(att.url);
+        return (
+          <div key={i} className="flex items-center gap-2 bg-indigo-50 border border-indigo-100 rounded-xl px-3 py-2">
+            <span className="text-lg shrink-0">{fileEmoji(att.name)}</span>
+            <span className="flex-1 text-sm text-gray-700 truncate">{att.name}</span>
+            <a href={att.url} target="_blank" rel="noreferrer"
+              className="shrink-0 text-xs font-medium text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-lg hover:bg-indigo-100">เปิด</a>
+            {dl && (
+              <a href={dl} target="_blank" rel="noreferrer"
+                className="shrink-0 text-xs font-medium text-green-600 hover:text-green-800 px-2 py-1 rounded-lg hover:bg-green-100">⬇️ โหลด</a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function linkify(text: string) {
   const parts = text.split(/(https?:\/\/[^\s]+)/g);
   return parts.map((part, i) =>
@@ -518,6 +554,7 @@ export default function StudentHomeworkPage() {
                       ส่งงาน
                     </button>
                   </div>
+                  <TeacherAttachments atts={a.attachments} />
                 </div>
               ))}
             </div>
