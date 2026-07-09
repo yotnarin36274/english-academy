@@ -22,10 +22,13 @@ export default function TeacherHubPage() {
   const [sessionMap, setSessionMap] = useState<Map<string, { topic: string; session_date: string }>>(new Map());
   const [missingView, setMissingView] = useState<MissingView>('assignment');
   const [loadingMissing, setLoadingMissing] = useState(true);
+  const [hoursMap, setHoursMap] = useState<Map<string, number>>(new Map());
+  const [loadingHours, setLoadingHours] = useState(true);
 
   useEffect(() => {
     loadStats();
     loadMissingData();
+    loadHoursData();
   }, []);
 
   async function loadStats() {
@@ -69,6 +72,24 @@ export default function TeacherHubPage() {
     setSessionMap(sm);
 
     setLoadingMissing(false);
+  }
+
+  async function loadHoursData() {
+    setLoadingHours(true);
+    const [sessionRes, attRes] = await Promise.all([
+      db().from('class_sessions').select('id, duration_hours'),
+      db().from('attendances').select('session_id, student_id').eq('status', 'present'),
+    ]);
+    const durMap = new Map<string, number>();
+    (sessionRes.data ?? []).forEach((s: { id: string; duration_hours: number }) =>
+      durMap.set(s.id, s.duration_hours));
+    const hm = new Map<string, number>();
+    (attRes.data ?? []).forEach((a: { session_id: string; student_id: string }) => {
+      const dur = durMap.get(a.session_id) ?? 0;
+      hm.set(a.student_id, (hm.get(a.student_id) ?? 0) + dur);
+    });
+    setHoursMap(hm);
+    setLoadingHours(false);
   }
 
   // ── Computed maps ─────────────────────────────────────────────────────────
@@ -133,6 +154,24 @@ export default function TeacherHubPage() {
       return (bv.date ?? '').localeCompare(av.date ?? '');
     });
   }, [assignments, assignmentMissingMap, sessionMap]);
+
+  const studentsHoursSorted = useMemo(() => {
+    return [...students]
+      .map(s => {
+        const used = hoursMap.get(s.id) ?? 0;
+        const total = s.total_course_hours ?? null;
+        const remaining = total !== null ? Math.max(0, total - used) : null;
+        return { student: s, used, total, remaining };
+      })
+      .sort((a, b) => {
+        if (a.remaining !== null && b.remaining !== null) return a.remaining - b.remaining;
+        if (a.remaining !== null) return -1;
+        if (b.remaining !== null) return 1;
+        return 0;
+      });
+  }, [students, hoursMap]);
+
+  const fmtHr = (h: number) => h % 1 === 0 ? String(h) : h.toFixed(1);
 
   const now = new Date();
   const isOverdue = (a: Assignment) => a.due_date != null && new Date(a.due_date) < now;
@@ -235,6 +274,57 @@ export default function TeacherHubPage() {
                 <p className="text-xs text-red-400 mt-1">Make-up คงค้าง</p>
               </div>
             </div>
+            {/* ── Hours remaining panel ── */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span>⏱️</span>
+                  <h2 className="font-bold text-gray-800 text-sm">ชั่วโมงเรียนคงเหลือ</h2>
+                </div>
+                <a href="/teacher/students" className="text-xs text-blue-500 hover:text-blue-700 shrink-0">จัดการ →</a>
+              </div>
+              {loadingHours || !students.length ? (
+                <div className="py-5 text-center text-gray-400 text-xs">กำลังโหลด...</div>
+              ) : (
+                <div className="divide-y divide-gray-50 max-h-60 overflow-y-auto">
+                  {studentsHoursSorted.map(({ student, used, total, remaining }) => {
+                    const pct = total && total > 0 ? Math.min(100, (used / total) * 100) : 0;
+                    const urgent = remaining !== null && remaining <= 2;
+                    const warning = remaining !== null && remaining > 2 && remaining <= 5;
+                    return (
+                      <a key={student.id} href={`/teacher/students/${student.id}`}
+                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
+                        <div className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${urgent ? 'bg-red-100 text-red-700' : warning ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
+                          {student.nickname[0]}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-xs font-semibold text-gray-800 truncate">{student.nickname}</p>
+                            {remaining !== null ? (
+                              <span className={`text-xs font-bold shrink-0 ml-2 ${urgent ? 'text-red-500' : warning ? 'text-amber-500' : 'text-teal-600'}`}>
+                                {fmtHr(remaining)} ชม.
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-gray-300 ml-2 shrink-0">ไม่ระบุแพ็กเกจ</span>
+                            )}
+                          </div>
+                          {total !== null && (
+                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${urgent ? 'bg-red-400' : warning ? 'bg-amber-400' : 'bg-teal-400'}`}
+                                style={{ width: `${pct}%` }} />
+                            </div>
+                          )}
+                          {total !== null && (
+                            <p className="text-[10px] text-gray-400 mt-0.5">{fmtHr(used)} / {fmtHr(total)} ชม.</p>
+                          )}
+                        </div>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="space-y-2">
               {tools.map(t => (
                 <a key={t.href} href={t.href}
