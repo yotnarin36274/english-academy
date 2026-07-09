@@ -78,7 +78,7 @@ export default function TeacherHubPage() {
     setLoadingHours(true);
     const [sessionRes, attRes] = await Promise.all([
       db().from('class_sessions').select('id, duration_hours'),
-      db().from('attendances').select('session_id, student_id').eq('status', 'present'),
+      db().from('attendance').select('session_id, student_id').eq('status', 'present'),
     ]);
     const durMap = new Map<string, number>();
     (sessionRes.data ?? []).forEach((s: { id: string; duration_hours: number }) =>
