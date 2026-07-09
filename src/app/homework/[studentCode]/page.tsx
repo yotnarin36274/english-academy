@@ -310,10 +310,6 @@ export default function StudentHomeworkPage() {
   const sessionReportBySid = new Map<string, SessionReportInfo>();
   sessionReports.forEach(sr => sessionReportBySid.set(sr.id, sr));
 
-  const totalPkg = student?.total_course_hours ?? null;
-  const remainingHours = totalPkg != null ? Math.max(0, totalPkg - attendedHours) : null;
-  const fmtH = (h: number) => h % 1 === 0 ? String(h) : h.toFixed(1);
-
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">กำลังโหลด...</div>;
 
   return (
@@ -333,20 +329,6 @@ export default function StudentHomeworkPage() {
               {refreshing ? '...' : '🔄 รีเฟรช'}
             </button>
           </div>
-          {remainingHours != null && (
-            <div className="flex gap-2 mt-3 flex-wrap">
-              <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-1.5 text-center">
-                <p className="text-xs text-blue-100">เรียนแล้ว</p>
-                <p className="font-bold">{fmtH(attendedHours)} ชม.</p>
-              </div>
-              <div className={`backdrop-blur rounded-xl px-3 py-1.5 text-center ${remainingHours <= 2 ? 'bg-red-400/40' : 'bg-white/20'}`}>
-                <p className="text-xs text-blue-100">⏱️ คงเหลือ</p>
-                <p className={`font-bold ${remainingHours <= 2 ? 'text-red-200' : remainingHours <= 5 ? 'text-yellow-200' : ''}`}>
-                  {fmtH(remainingHours)} ชม.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

@@ -5,6 +5,7 @@ import { db } from '@/lib/supabase';
 import type { Assignment, Student } from '@/lib/db';
 
 type MissingView = 'assignment' | 'student' | 'course' | 'session';
+type CourseEntry = { courseId: string; name: string; subject: string; used: number; total: number };
 const PANEL_TABS: { id: MissingView; label: string }[] = [
   { id: 'assignment', label: 'Assignment' },
   { id: 'student',   label: 'นักเรียน' },
@@ -22,7 +23,7 @@ export default function TeacherHubPage() {
   const [sessionMap, setSessionMap] = useState<Map<string, { topic: string; session_date: string }>>(new Map());
   const [missingView, setMissingView] = useState<MissingView>('assignment');
   const [loadingMissing, setLoadingMissing] = useState(true);
-  const [hoursMap, setHoursMap] = useState<Map<string, number>>(new Map());
+  const [studentCoursesData, setStudentCoursesData] = useState<Map<string, CourseEntry[]>>(new Map());
   const [loadingHours, setLoadingHours] = useState(true);
 
   useEffect(() => {
@@ -76,19 +77,38 @@ export default function TeacherHubPage() {
 
   async function loadHoursData() {
     setLoadingHours(true);
-    const [sessionRes, attRes] = await Promise.all([
-      db().from('class_sessions').select('id, duration_hours'),
+    const [courseRes, sessionRes, attRes] = await Promise.all([
+      db().from('courses').select('id, name, subject, total_hours, student_ids').eq('is_active', true),
+      db().from('class_sessions').select('id, duration_hours, course_id'),
       db().from('attendance').select('session_id, student_id').eq('status', 'present'),
     ]);
-    const durMap = new Map<string, number>();
-    (sessionRes.data ?? []).forEach((s: { id: string; duration_hours: number }) =>
-      durMap.set(s.id, s.duration_hours));
-    const hm = new Map<string, number>();
+
+    // sessionId → { duration_hours, course_id }
+    const sessionInfoMap = new Map<string, { duration_hours: number; course_id: string | null }>();
+    (sessionRes.data ?? []).forEach((s: { id: string; duration_hours: number; course_id: string | null }) =>
+      sessionInfoMap.set(s.id, { duration_hours: s.duration_hours, course_id: s.course_id }));
+
+    // studentId → courseId → hoursUsed (from present attendance)
+    const usedMap = new Map<string, Map<string, number>>();
     (attRes.data ?? []).forEach((a: { session_id: string; student_id: string }) => {
-      const dur = durMap.get(a.session_id) ?? 0;
-      hm.set(a.student_id, (hm.get(a.student_id) ?? 0) + dur);
+      const sess = sessionInfoMap.get(a.session_id);
+      if (!sess?.course_id) return;
+      if (!usedMap.has(a.student_id)) usedMap.set(a.student_id, new Map());
+      const m = usedMap.get(a.student_id)!;
+      m.set(sess.course_id, (m.get(sess.course_id) ?? 0) + sess.duration_hours);
     });
-    setHoursMap(hm);
+
+    // Build per-student course list from courses.student_ids (includes 0-hour students)
+    const studentCoursesMap = new Map<string, CourseEntry[]>();
+    (courseRes.data ?? []).forEach((c: { id: string; name: string; subject: string; total_hours: number; student_ids: string[] }) => {
+      (c.student_ids ?? []).forEach(sid => {
+        const used = usedMap.get(sid)?.get(c.id) ?? 0;
+        if (!studentCoursesMap.has(sid)) studentCoursesMap.set(sid, []);
+        studentCoursesMap.get(sid)!.push({ courseId: c.id, name: c.name, subject: c.subject, used, total: c.total_hours });
+      });
+    });
+
+    setStudentCoursesData(studentCoursesMap);
     setLoadingHours(false);
   }
 
@@ -158,18 +178,19 @@ export default function TeacherHubPage() {
   const studentsHoursSorted = useMemo(() => {
     return [...students]
       .map(s => {
-        const used = hoursMap.get(s.id) ?? 0;
-        const total = s.total_course_hours ?? null;
-        const remaining = total !== null ? Math.max(0, total - used) : null;
-        return { student: s, used, total, remaining };
+        const courses = (studentCoursesData.get(s.id) ?? [])
+          .map(c => ({ ...c, remaining: Math.max(0, c.total - c.used) }))
+          .sort((a, b) => a.remaining - b.remaining);
+        const minRemaining = courses.length > 0 ? courses[0].remaining : null;
+        return { student: s, courses, minRemaining };
       })
       .sort((a, b) => {
-        if (a.remaining !== null && b.remaining !== null) return a.remaining - b.remaining;
-        if (a.remaining !== null) return -1;
-        if (b.remaining !== null) return 1;
+        if (a.minRemaining !== null && b.minRemaining !== null) return a.minRemaining - b.minRemaining;
+        if (a.minRemaining !== null) return -1;
+        if (b.minRemaining !== null) return 1;
         return 0;
       });
-  }, [students, hoursMap]);
+  }, [students, studentCoursesData]);
 
   const fmtHr = (h: number) => h % 1 === 0 ? String(h) : h.toFixed(1);
 
@@ -286,38 +307,48 @@ export default function TeacherHubPage() {
               {loadingHours || !students.length ? (
                 <div className="py-5 text-center text-gray-400 text-xs">กำลังโหลด...</div>
               ) : (
-                <div className="divide-y divide-gray-50 max-h-60 overflow-y-auto">
-                  {studentsHoursSorted.map(({ student, used, total, remaining }) => {
-                    const pct = total && total > 0 ? Math.min(100, (used / total) * 100) : 0;
-                    const urgent = remaining !== null && remaining <= 2;
-                    const warning = remaining !== null && remaining > 2 && remaining <= 5;
+                <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                  {studentsHoursSorted.map(({ student, courses, minRemaining }) => {
+                    const urgent = minRemaining !== null && minRemaining <= 2;
+                    const warning = minRemaining !== null && minRemaining > 2 && minRemaining <= 5;
                     return (
                       <a key={student.id} href={`/teacher/students/${student.id}`}
-                        className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 transition-colors">
-                        <div className={`w-7 h-7 rounded-full text-xs font-bold flex items-center justify-center shrink-0 ${urgent ? 'bg-red-100 text-red-700' : warning ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
-                          {student.nickname[0]}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-xs font-semibold text-gray-800 truncate">{student.nickname}</p>
-                            {remaining !== null ? (
-                              <span className={`text-xs font-bold shrink-0 ml-2 ${urgent ? 'text-red-500' : warning ? 'text-amber-500' : 'text-teal-600'}`}>
-                                {fmtHr(remaining)} ชม.
-                              </span>
-                            ) : (
-                              <span className="text-[10px] text-gray-300 ml-2 shrink-0">ไม่ระบุแพ็กเกจ</span>
-                            )}
+                        className="block px-4 py-3 hover:bg-gray-50 transition-colors">
+                        {/* Student name row */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${urgent ? 'bg-red-100 text-red-700' : warning ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
+                            {student.nickname[0]}
                           </div>
-                          {total !== null && (
-                            <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                              <div className={`h-full rounded-full transition-all ${urgent ? 'bg-red-400' : warning ? 'bg-amber-400' : 'bg-teal-400'}`}
-                                style={{ width: `${pct}%` }} />
-                            </div>
-                          )}
-                          {total !== null && (
-                            <p className="text-[10px] text-gray-400 mt-0.5">{fmtHr(used)} / {fmtHr(total)} ชม.</p>
+                          <p className="text-xs font-semibold text-gray-800">{student.nickname}</p>
+                          {courses.length === 0 && (
+                            <span className="text-[10px] text-gray-300 ml-auto">ไม่มีข้อมูลคอร์ส</span>
                           )}
                         </div>
+                        {/* Per-course bars */}
+                        {courses.length > 0 && (
+                          <div className="space-y-2 pl-8">
+                            {courses.map(c => {
+                              const pct = c.total > 0 ? Math.min(100, (c.used / c.total) * 100) : 0;
+                              const cUrgent = c.remaining <= 2;
+                              const cWarn = c.remaining > 2 && c.remaining <= 5;
+                              return (
+                                <div key={c.courseId}>
+                                  <div className="flex items-center justify-between mb-0.5">
+                                    <p className="text-[10px] text-gray-500 truncate flex-1 mr-1">{c.name}</p>
+                                    <span className={`text-[10px] font-bold shrink-0 ${cUrgent ? 'text-red-500' : cWarn ? 'text-amber-500' : 'text-teal-600'}`}>
+                                      {fmtHr(c.remaining)} ชม.
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className={`h-full rounded-full ${cUrgent ? 'bg-red-400' : cWarn ? 'bg-amber-400' : 'bg-teal-400'}`}
+                                      style={{ width: `${pct}%` }} />
+                                  </div>
+                                  <p className="text-[10px] text-gray-300 mt-0.5">{fmtHr(c.used)} / {fmtHr(c.total)} ชม.</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </a>
                     );
                   })}

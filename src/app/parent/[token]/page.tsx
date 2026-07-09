@@ -344,9 +344,6 @@ export default function ParentPortalPage() {
     ? Math.round(reviewed.reduce((s, i) => s + (i.feedback!.score! / i.feedback!.max_score) * 100, 0) / reviewed.length)
     : null;
 
-  const totalPkg = student.total_course_hours ?? null;
-  const remainingHours = totalPkg != null ? Math.max(0, totalPkg - attendedHours) : null;
-  const fmtH = (h: number) => h % 1 === 0 ? String(h) : h.toFixed(1);
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-gray-400">กำลังโหลด...</div>;
 
@@ -392,15 +389,7 @@ export default function ParentPortalPage() {
             {attendedHours > 0 && (
               <div className="bg-white/20 backdrop-blur rounded-xl px-3 py-2 text-center">
                 <p className="text-xs text-green-100">ชม.เรียน</p>
-                <p className="text-xl font-bold">{fmtH(attendedHours)}</p>
-              </div>
-            )}
-            {remainingHours != null && (
-              <div className={`backdrop-blur rounded-xl px-3 py-2 text-center ${remainingHours <= 2 ? 'bg-red-400/40' : 'bg-white/20'}`}>
-                <p className="text-xs text-green-100">⏱️ คงเหลือ</p>
-                <p className={`text-xl font-bold ${remainingHours <= 2 ? 'text-red-200' : remainingHours <= 5 ? 'text-yellow-200' : ''}`}>
-                  {fmtH(remainingHours)} ชม.
-                </p>
+                <p className="text-xl font-bold">{attendedHours}</p>
               </div>
             )}
           </div>
