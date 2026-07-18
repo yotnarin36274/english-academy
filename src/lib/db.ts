@@ -135,6 +135,24 @@ export interface SessionStudentFeedback {
   feedback: string | null;
 }
 
+export interface QuizAttempt {
+  id: string;
+  created_at: string;
+  student_id: string;
+  quiz_key: string;
+  bank_version: number;
+  answers: Record<string, string>;
+  score: number;
+  total: number;
+  wrong_questions: number[];
+  analysis: {
+    bySentenceType: Record<string, { wrong: number; total: number }>;
+    bySubskill: Record<string, { wrong: number; total: number }>;
+    weakSubskills: string[];
+  };
+  students?: Student;
+}
+
 export const GROUP_LABELS: Record<string, string> = {
   p46: 'ป.4–ป.6',
   m13: 'ม.1–ม.3',

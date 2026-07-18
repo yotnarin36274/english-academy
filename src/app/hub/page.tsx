@@ -117,6 +117,12 @@ export default function HubPage() {
             >
               แบบทดสอบวัดระดับ
             </a>
+            <a
+              href="/quiz"
+              className="flex-1 text-center text-sm font-semibold text-pink-700 bg-pink-50 hover:bg-pink-100 py-2.5 rounded-xl transition-colors border border-pink-200"
+            >
+              🎯 Quiz ทบทวน
+            </a>
           </div>
           <div className="flex gap-2">
             <input

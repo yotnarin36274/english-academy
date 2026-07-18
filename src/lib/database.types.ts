@@ -268,6 +268,41 @@ export interface Database {
         };
         Relationships: [];
       };
+      quiz_attempts: {
+        Row: {
+          id: string;
+          created_at: string;
+          student_id: string;
+          quiz_key: string;
+          bank_version: number;
+          answers: Record<string, string>;
+          score: number;
+          total: number;
+          wrong_questions: number[];
+          analysis: Json;
+        };
+        Insert: {
+          student_id: string;
+          quiz_key: string;
+          bank_version?: number;
+          answers: Record<string, string>;
+          score: number;
+          total: number;
+          wrong_questions?: number[];
+          analysis: Json;
+        };
+        Update: {
+          student_id?: string;
+          quiz_key?: string;
+          bank_version?: number;
+          answers?: Record<string, string>;
+          score?: number;
+          total?: number;
+          wrong_questions?: number[];
+          analysis?: Json;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

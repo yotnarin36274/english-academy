@@ -256,6 +256,7 @@ export default function TeacherHubPage() {
     { href: '/teacher/classroom',  icon: '🎮', label: 'เครื่องมือสอน',    desc: 'วงล้อสุ่ม แบ่งกลุ่ม จับเวลา คะแนนทีม ลูกเต๋า',          badge: null,            color: 'border-indigo-100 hover:border-indigo-300' },
     { href: '/teacher/homework',   icon: '📝', label: 'ตรวจการบ้าน',       desc: 'ดูงานที่ส่งและให้คะแนน Feedback',                badge: pendingHomework, color: 'border-amber-100 hover:border-amber-300' },
     { href: '/teacher/assignments',icon: '📚', label: 'สร้าง Assignment',   desc: 'สร้างและจัดการงานที่มอบหมาย',                    badge: null,            color: 'border-blue-100 hover:border-blue-300' },
+    { href: '/teacher/quiz',       icon: '🎯', label: 'Quiz ทบทวน',         desc: 'ดูผล Quiz จุดอ่อน และสร้างใบงานเสริม',            badge: null,            color: 'border-pink-100 hover:border-pink-300' },
     { href: '/teacher/courses',    icon: '📚', label: 'คอร์ส',              desc: 'สร้างและจัดการคอร์สเรียน',                       badge: null,            color: 'border-teal-100 hover:border-teal-300' },
     { href: '/teacher/attendance', icon: '📅', label: 'Sessions',           desc: 'เช็คชื่อ อัปวิดีโอ สรุปคาบ และ Feedback รายบุคคล', badge: null,         color: 'border-green-100 hover:border-green-300' },
     { href: '/teacher/makeup',     icon: '🔁', label: 'Make-up Classes',    desc: 'ติดตามและจัดการชั่วโมงเรียนชดเชย',               badge: pendingMakeup,   color: 'border-red-100 hover:border-red-300' },

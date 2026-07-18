@@ -522,6 +522,17 @@ export default function StudentHomeworkPage() {
           </section>
         )}
 
+        {/* Grammar quiz card */}
+        <a href={`/quiz/${studentCode}`}
+          className="flex items-center gap-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl shadow-sm border-2 border-pink-100 hover:border-pink-300 p-4 transition-colors">
+          <span className="text-3xl">🎯</span>
+          <div className="flex-1">
+            <p className="font-bold text-gray-800">Quiz ทบทวน Grammar</p>
+            <p className="text-xs text-gray-500">ฝึก Present Simple · Present Continuous · Past Simple</p>
+          </div>
+          <span className="text-pink-300 text-lg">→</span>
+        </a>
+
           </div>
           <div className="space-y-6">
 
