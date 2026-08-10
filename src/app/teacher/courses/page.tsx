@@ -6,7 +6,7 @@ import { db } from '@/lib/supabase';
 import type { Student, Course } from '@/lib/db';
 
 const SUBJECT_OPTIONS = ['English', 'MATH', 'Science', 'Thai', 'Social', 'Art'];
-const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
+const GROUP_LABELS: Record<string, string> = { p13: 'ป.1–ป.3', p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
 
 export default function CoursesPage() {
   const router = useRouter();

@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { db } from '@/lib/supabase';
 import type { Assignment, Student, HomeworkSubmission } from '@/lib/db';
 
-const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
+const GROUP_LABELS: Record<string, string> = { p13: 'ป.1–ป.3', p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
 
 type View = 'assignment' | 'student' | 'course' | 'session';
 const VIEWS: { id: View; label: string }[] = [

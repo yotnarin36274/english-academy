@@ -5,9 +5,10 @@ import { useRouter } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import type { Student } from '@/lib/db';
 
-const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
-const GRADES = ['ป.4', 'ป.5', 'ป.6', 'ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
+const GROUP_LABELS: Record<string, string> = { p13: 'ป.1–ป.3', p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
+const GRADES = ['ป.1', 'ป.2', 'ป.3', 'ป.4', 'ป.5', 'ป.6', 'ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
 const GRADE_GROUP: Record<string, string> = {
+  'ป.1': 'p13', 'ป.2': 'p13', 'ป.3': 'p13',
   'ป.4': 'p46', 'ป.5': 'p46', 'ป.6': 'p46',
   'ม.1': 'm13', 'ม.2': 'm13', 'ม.3': 'm13',
   'ม.4': 'm46', 'ม.5': 'm46', 'ม.6': 'm46',

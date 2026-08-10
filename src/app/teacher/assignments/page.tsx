@@ -5,7 +5,7 @@ import { db } from '@/lib/supabase';
 import type { Assignment, Student, Course, ClassSession } from '@/lib/db';
 import { loadGoogleScript, requestAccessToken, uploadAssignmentFile } from '@/lib/googleDrive';
 
-const GROUP_LABELS: Record<string, string> = { p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
+const GROUP_LABELS: Record<string, string> = { p13: 'ป.1–ป.3', p46: 'ป.4–ป.6', m13: 'ม.1–ม.3', m46: 'ม.4–ม.6' };
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? '';
 
 function fileEmoji(name: string): string {

@@ -154,6 +154,7 @@ export interface QuizAttempt {
 }
 
 export const GROUP_LABELS: Record<string, string> = {
+  p13: 'ป.1–ป.3',
   p46: 'ป.4–ป.6',
   m13: 'ม.1–ม.3',
   m46: 'ม.4–ม.6',
