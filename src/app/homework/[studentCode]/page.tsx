@@ -112,6 +112,8 @@ export default function StudentHomeworkPage() {
   const [expandedReports, setExpandedReports] = useState<Set<string>>(new Set());
   const [asgSessionMap, setAsgSessionMap] = useState<Map<string, string>>(new Map()); // session_id → topic
   const [asgCourseMap, setAsgCourseMap] = useState<Map<string, string>>(new Map());   // course_id → name
+  const [openCourses, setOpenCourses] = useState<Set<string>>(new Set()); // course groups with details expanded
+  const [showAllReviewed, setShowAllReviewed] = useState(false);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const channelRef = useRef<any>(null);
 
@@ -329,12 +331,32 @@ export default function StudentHomeworkPage() {
               {refreshing ? '...' : '🔄 รีเฟรช'}
             </button>
           </div>
+
+          {/* Quick stats — แตะเพื่อกระโดดไปหัวข้อ */}
+          <div className="grid grid-cols-3 gap-2 mt-4">
+            <a href="#pending"
+              className={`rounded-xl px-2 py-2.5 text-center transition-colors ${pending.length > 0 ? 'bg-white text-red-600 shadow-sm' : 'bg-white/15 text-white'}`}>
+              <p className="text-2xl font-black leading-none">{pending.length}</p>
+              <p className="text-[11px] mt-1 font-medium">📌 ต้องส่ง</p>
+            </a>
+            <a href="#submitted"
+              className="rounded-xl px-2 py-2.5 text-center bg-white/15 hover:bg-white/25 transition-colors">
+              <p className="text-2xl font-black leading-none">{submitted.length}</p>
+              <p className="text-[11px] mt-1 text-blue-100 font-medium">⏳ รอตรวจ</p>
+            </a>
+            <a href="#reviewed"
+              className="rounded-xl px-2 py-2.5 text-center bg-white/15 hover:bg-white/25 transition-colors">
+              <p className="text-2xl font-black leading-none">{reviewed.length}</p>
+              <p className="text-[11px] mt-1 text-blue-100 font-medium">✅ ตรวจแล้ว</p>
+            </a>
+          </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 mt-5">
         <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-          <div className="space-y-6">
+          {/* บนมือถือ: การบ้านมาก่อน (order-1) — บนจอใหญ่: คอร์สอยู่ซ้ายตามเดิม */}
+          <div className="space-y-6 order-2 lg:order-1">
 
         {/* Course + Session history */}
         {(sessions.length > 0 || makeups.length > 0) && (
@@ -346,6 +368,8 @@ export default function StudentHomeworkPage() {
                 .map(s => sessionReportBySid.get(s.id))
                 .filter((r): r is SessionReportInfo => !!r);
               const pct = group.quota > 0 ? Math.min(100, (group.attendedHours / group.quota) * 100) : 0;
+              const detailsOpen = openCourses.has(group.key);
+              const detailCount = group.sessions.length + groupReports.length;
 
               return (
                 <div key={group.key} className={gi > 0 ? 'border-t border-gray-100 pt-4 space-y-2' : 'space-y-2'}>
@@ -385,8 +409,21 @@ export default function StudentHomeworkPage() {
                     </div>
                   ) : null}
 
+                  {/* ปุ่มเปิด/ปิดรายละเอียด — ซ่อนรายการคาบและวิดีโอไว้ไม่ให้หน้ารก */}
+                  {detailCount > 0 && (
+                    <button
+                      onClick={() => setOpenCourses(prev => {
+                        const n = new Set(prev);
+                        n.has(group.key) ? n.delete(group.key) : n.add(group.key);
+                        return n;
+                      })}
+                      className="w-full flex items-center justify-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                      {detailsOpen ? '▲ ซ่อนรายละเอียด' : `▼ ดูคาบเรียน & วิดีโอ (${detailCount})`}
+                    </button>
+                  )}
+
                   {/* Session list */}
-                  {group.sessions.length > 0 && (
+                  {detailsOpen && group.sessions.length > 0 && (
                     <div className="space-y-0.5">
                       {group.sessions.slice(0, 5).map(s => (
                         <div key={s.id} className="flex items-center gap-2 text-xs py-1.5 border-b border-gray-50 last:border-0">
@@ -402,7 +439,7 @@ export default function StudentHomeworkPage() {
                   )}
 
                   {/* Session reports (videos) for this course */}
-                  {groupReports.length > 0 && (
+                  {detailsOpen && groupReports.length > 0 && (
                     <div className="space-y-1.5 pt-1">
                       <p className="text-xs font-semibold text-gray-500">📹 บันทึกการเรียน ({groupReports.length})</p>
                       {groupReports.map(sr => {
@@ -522,59 +559,64 @@ export default function StudentHomeworkPage() {
           </section>
         )}
 
-        {/* Grammar quiz card */}
-        <a href={`/quiz/${studentCode}`}
-          className="flex items-center gap-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl shadow-sm border-2 border-pink-100 hover:border-pink-300 p-4 transition-colors">
-          <span className="text-3xl">🎯</span>
-          <div className="flex-1">
-            <p className="font-bold text-gray-800">Quiz ทบทวน Grammar</p>
-            <p className="text-xs text-gray-500">ฝึก Present Simple · Present Continuous · Past Simple</p>
           </div>
-          <span className="text-pink-300 text-lg">→</span>
-        </a>
-
-          </div>
-          <div className="space-y-6">
+          <div className="space-y-6 order-1 lg:order-2">
 
         {/* Pending */}
-        {pending.length > 0 && (
-          <section>
-            <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-3">
-              📌 งานที่ต้องส่ง ({pending.length})
-            </h2>
+        <section id="pending" className="scroll-mt-4">
+          <h2 className="text-sm font-semibold text-red-600 uppercase tracking-wide mb-3">
+            📌 งานที่ต้องส่ง ({pending.length})
+          </h2>
+          {pending.length === 0 ? (
+            <div className="bg-green-50 border-2 border-green-100 rounded-2xl p-5 text-center">
+              <div className="text-3xl mb-1">🎉</div>
+              <p className="text-sm font-semibold text-green-700">ไม่มีงานค้างแล้ว เก่งมาก!</p>
+            </div>
+          ) : (
             <div className="space-y-3">
-              {pending.map(a => (
-                <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-red-100 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      {a.session_id && (
-                        <p className="text-xs text-indigo-600 font-medium mb-1">
-                          📅 {a.course_id && asgCourseMap.get(a.course_id) ? `${asgCourseMap.get(a.course_id)} · ` : ''}{asgSessionMap.get(a.session_id) ?? ''}
-                        </p>
-                      )}
-                      <p className="font-semibold text-gray-800">{a.title}</p>
-                      {a.description && <p className="text-sm text-gray-500 mt-0.5 whitespace-pre-wrap">{linkify(a.description)}</p>}
-                      {a.due_date && (
-                        <p className="text-xs text-red-500 mt-1">
-                          ครบกำหนด: {new Date(a.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}
-                        </p>
-                      )}
-                    </div>
+              {pending.map(a => {
+                const overdue = a.due_date != null && a.due_date < today;
+                return (
+                  <div key={a.id} className="bg-white rounded-2xl shadow-sm border-2 border-red-100 p-4">
+                    {a.session_id && (
+                      <p className="text-xs text-indigo-600 font-medium mb-1">
+                        📅 {a.course_id && asgCourseMap.get(a.course_id) ? `${asgCourseMap.get(a.course_id)} · ` : ''}{asgSessionMap.get(a.session_id) ?? ''}
+                      </p>
+                    )}
+                    <p className="font-bold text-gray-800 text-base leading-snug">{a.title}</p>
+                    {a.description && <p className="text-sm text-gray-500 mt-1 whitespace-pre-wrap">{linkify(a.description)}</p>}
+                    {a.due_date && (
+                      <p className={`text-xs mt-2 font-medium ${overdue ? 'text-red-600' : 'text-gray-500'}`}>
+                        {overdue ? '🔴 เลยกำหนดแล้ว · ' : '📅 ครบกำหนด: '}
+                        {new Date(a.due_date).toLocaleDateString('th-TH', { day: 'numeric', month: 'long' })}
+                      </p>
+                    )}
+                    <TeacherAttachments atts={a.attachments} />
                     <button onClick={() => router.push(`/homework/${studentCode}/submit/${a.id}`)}
-                      className="shrink-0 bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors">
-                      ส่งงาน
+                      className="mt-3 w-full bg-blue-600 text-white text-base font-bold py-3 rounded-xl hover:bg-blue-700 active:bg-blue-800 transition-colors">
+                      📤 ส่งงาน
                     </button>
                   </div>
-                  <TeacherAttachments atts={a.attachments} />
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </section>
-        )}
+          )}
+        </section>
+
+        {/* Grammar quiz card */}
+        <a href={`/quiz/${studentCode}`}
+          className="flex items-center gap-4 bg-gradient-to-r from-pink-50 to-purple-50 rounded-2xl shadow-sm border-2 border-pink-100 hover:border-pink-300 active:border-pink-400 p-4 transition-colors">
+          <span className="text-3xl shrink-0">🎯</span>
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-gray-800">Quiz ทบทวน Grammar</p>
+            <p className="text-xs text-gray-500 mt-0.5">ฝึกเองได้ไม่จำกัด · รู้ผลทันที</p>
+          </div>
+          <span className="text-pink-400 text-lg shrink-0">→</span>
+        </a>
 
         {/* Submitted / waiting */}
         {submitted.length > 0 && (
-          <section>
+          <section id="submitted" className="scroll-mt-4">
             <h2 className="text-sm font-semibold text-amber-600 uppercase tracking-wide mb-3">
               ⏳ รอครูตรวจ ({submitted.length})
             </h2>
@@ -611,12 +653,12 @@ export default function StudentHomeworkPage() {
 
         {/* Reviewed */}
         {reviewed.length > 0 && (
-          <section>
+          <section id="reviewed" className="scroll-mt-4">
             <h2 className="text-sm font-semibold text-green-600 uppercase tracking-wide mb-3">
               ✅ ตรวจแล้ว ({reviewed.length})
             </h2>
             <div className="space-y-3">
-              {reviewed.map(a => {
+              {(showAllReviewed ? reviewed : reviewed.slice(0, 3)).map(a => {
                 const fb = a.feedback!;
                 const pct = fb.score != null ? Math.round((fb.score / fb.max_score) * 100) : null;
                 return (
@@ -651,6 +693,12 @@ export default function StudentHomeworkPage() {
                 );
               })}
             </div>
+            {reviewed.length > 3 && (
+              <button onClick={() => setShowAllReviewed(v => !v)}
+                className="w-full mt-2 text-sm text-green-600 hover:text-green-800 font-medium py-2.5 rounded-xl border border-green-100 hover:bg-green-50 transition-colors">
+                {showAllReviewed ? '▲ ย่อ' : `▼ ดูทั้งหมด (${reviewed.length})`}
+              </button>
+            )}
           </section>
         )}
 
