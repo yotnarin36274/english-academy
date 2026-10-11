@@ -25,6 +25,7 @@ export default function TeacherHubPage() {
   const [loadingMissing, setLoadingMissing] = useState(true);
   const [studentCoursesData, setStudentCoursesData] = useState<Map<string, CourseEntry[]>>(new Map());
   const [loadingHours, setLoadingHours] = useState(true);
+  const [openDone, setOpenDone] = useState<Set<string>>(new Set()); // student ids whose "เรียนครบแล้ว" list is expanded
 
   useEffect(() => {
     loadStats();
@@ -178,17 +179,20 @@ export default function TeacherHubPage() {
   const studentsHoursSorted = useMemo(() => {
     return [...students]
       .map(s => {
-        const courses = (studentCoursesData.get(s.id) ?? [])
-          .map(c => ({ ...c, remaining: Math.max(0, c.total - c.used) }))
+        const all = (studentCoursesData.get(s.id) ?? [])
+          .map(c => ({ ...c, remaining: Math.max(0, c.total - c.used) }));
+        // เรียนครบแล้ว = มีโควตา และใช้หมดแล้ว — เก็บไว้ใน dropdown ไม่แสดงเป็นแถบ
+        const doneCourses = all.filter(c => c.total > 0 && c.remaining === 0);
+        const courses = all.filter(c => !(c.total > 0 && c.remaining === 0))
           .sort((a, b) => a.remaining - b.remaining);
         const minRemaining = courses.length > 0 ? courses[0].remaining : null;
-        return { student: s, courses, minRemaining };
+        return { student: s, courses, doneCourses, minRemaining };
       })
       .sort((a, b) => {
         if (a.minRemaining !== null && b.minRemaining !== null) return a.minRemaining - b.minRemaining;
         if (a.minRemaining !== null) return -1;
         if (b.minRemaining !== null) return 1;
-        return 0;
+        return b.doneCourses.length - a.doneCourses.length;
       });
   }, [students, studentCoursesData]);
 
@@ -309,23 +313,25 @@ export default function TeacherHubPage() {
                 <div className="py-5 text-center text-gray-400 text-xs">กำลังโหลด...</div>
               ) : (
                 <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
-                  {studentsHoursSorted.map(({ student, courses, minRemaining }) => {
+                  {studentsHoursSorted.map(({ student, courses, doneCourses, minRemaining }) => {
                     const urgent = minRemaining !== null && minRemaining <= 2;
                     const warning = minRemaining !== null && minRemaining > 2 && minRemaining <= 5;
+                    const allDone = courses.length === 0 && doneCourses.length > 0;
+                    const doneOpen = openDone.has(student.id);
                     return (
-                      <a key={student.id} href={`/teacher/students/${student.id}`}
-                        className="block px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div key={student.id} className="px-4 py-3">
                         {/* Student name row */}
-                        <div className="flex items-center gap-2 mb-2">
-                          <div className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${urgent ? 'bg-red-100 text-red-700' : warning ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
+                        <a href={`/teacher/students/${student.id}`}
+                          className="flex items-center gap-2 mb-2 hover:opacity-70 transition-opacity">
+                          <div className={`w-6 h-6 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${allDone ? 'bg-gray-100 text-gray-500' : urgent ? 'bg-red-100 text-red-700' : warning ? 'bg-amber-100 text-amber-700' : 'bg-teal-100 text-teal-700'}`}>
                             {student.nickname[0]}
                           </div>
                           <p className="text-xs font-semibold text-gray-800">{student.nickname}</p>
-                          {courses.length === 0 && (
+                          {courses.length === 0 && doneCourses.length === 0 && (
                             <span className="text-[10px] text-gray-300 ml-auto">ไม่มีข้อมูลคอร์ส</span>
                           )}
-                        </div>
-                        {/* Per-course bars */}
+                        </a>
+                        {/* Per-course bars (เฉพาะคอร์สที่ยังเรียนไม่ครบ) */}
                         {courses.length > 0 && (
                           <div className="space-y-2 pl-8">
                             {courses.map(c => {
@@ -350,7 +356,33 @@ export default function TeacherHubPage() {
                             })}
                           </div>
                         )}
-                      </a>
+                        {/* คอร์สที่เรียนครบแล้ว — ปุ่ม dropdown เดียว กดดูรายชื่อคอร์ส */}
+                        {doneCourses.length > 0 && (
+                          <div className={`pl-8 ${courses.length > 0 ? 'mt-2.5' : ''}`}>
+                            <button type="button"
+                              onClick={() => setOpenDone(prev => {
+                                const n = new Set(prev);
+                                if (n.has(student.id)) n.delete(student.id); else n.add(student.id);
+                                return n;
+                              })}
+                              aria-expanded={doneOpen}
+                              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-teal-700 bg-teal-50 hover:bg-teal-100 border border-teal-100 rounded-full px-2.5 py-1 transition-colors">
+                              <span>✅ เรียนครบแล้ว {doneCourses.length} คอร์ส</span>
+                              <span className="text-[9px]">{doneOpen ? '▲' : '▼'}</span>
+                            </button>
+                            {doneOpen && (
+                              <ul className="mt-1.5 space-y-1">
+                                {doneCourses.map(c => (
+                                  <li key={c.courseId} className="flex items-center justify-between gap-2 text-[10px] text-gray-500">
+                                    <span className="truncate">{c.name}</span>
+                                    <span className="shrink-0 text-gray-400">{fmtHr(c.total)} ชม.</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
