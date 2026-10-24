@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ENG Spark Review Quest</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Sarabun:wght@400;600;700&display=swap">
+<style>
+/* Layout: one narrow column app — header band, then one view at a time (home / quiz / result / lesson) */
+:root{
+  --bg:#eceff2; --card:#ffffff; --ink:#1b2733; --muted:#5f6d79; --line:#d3dae0; --panel:#f1f5f9;
+  --navy:#1b3a57; --navy2:#2a5d84; --accent:#e07a2f; --accent-soft:#f6e2d0; --note:#fdf4e6;
+  --good:#2f8f6b; --good-soft:#e3f2eb; --warn:#c9811a; --warn-soft:#fbefd9; --bad:#c0392b; --bad-soft:#f8e1de;
+  --on-navy:#ffffff;
+  --display:"Fredoka","Sarabun",system-ui,sans-serif; --body:"Sarabun",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111a23; --card:#18242f; --ink:#e7edf2; --muted:#9aa9b6; --line:#2c3b49; --panel:#1f2e3b;
+  --navy:#9cc3e6; --navy2:#7fb0dc; --accent:#f0954f; --accent-soft:#3a2a1d; --note:#2d2419;
+  --good:#5cc39a; --good-soft:#173328; --warn:#e6a94a; --warn-soft:#352a16; --bad:#ec7b6e; --bad-soft:#3a1f1c;
+  --on-navy:#0f1a24; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111a23; --card:#18242f; --ink:#e7edf2; --muted:#9aa9b6; --line:#2c3b49; --panel:#1f2e3b;
+  --navy:#9cc3e6; --navy2:#7fb0dc; --accent:#f0954f; --accent-soft:#3a2a1d; --note:#2d2419;
+  --good:#5cc39a; --good-soft:#173328; --warn:#e6a94a; --warn-soft:#352a16; --bad:#ec7b6e; --bad-soft:#3a1f1c;
+  --on-navy:#0f1a24; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55}
+.wrap{max-width:760px;margin:0 auto;padding-block:16px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px}
+.brand{font-family:var(--display);font-weight:700;font-size:22px;color:var(--navy)}
+.brand span{color:var(--accent)}
+.who{font-size:14px;color:var(--muted);text-align:right}
+.card{background:var(--card);border-radius:16px;padding:20px;border:1px solid var(--line)}
+.stack{display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--display);color:var(--navy);margin:0;text-wrap:balance;line-height:1.25}
+h1{font-size:30px}h2{font-size:23px}h3{font-size:19px}
+.muted{color:var(--muted)}.small{font-size:14px}
+button{font-family:var(--body);font-weight:700;font-size:16px;border-radius:12px;padding:11px 16px;cursor:pointer;border:2px solid transparent;background:var(--navy);color:var(--on-navy)}
+button.alt{background:transparent;color:var(--navy);border-color:var(--navy)}
+button.go{background:var(--accent);color:#fff}
+button.link{background:none;border:0;padding:4px 0;color:var(--navy2);text-decoration:underline;font-weight:600}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button:disabled{opacity:.45;cursor:default}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.names{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.names button{background:var(--panel);color:var(--ink);border-color:var(--line);font-family:var(--display);font-size:20px;padding:14px}
+.names button:hover{border-color:var(--accent)}
+input[type=text]{font:inherit;padding:11px 14px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink);min-width:0;flex:1}
+/* topic list */
+.topics{display:flex;flex-direction:column;gap:8px}
+.tp{display:grid;grid-template-columns:1fr auto;gap:4px 12px;align-items:center;background:var(--panel);border-radius:12px;padding:10px 14px;border:0;color:var(--ink);text-align:left;font-weight:400;width:100%}
+.tp:hover{outline:2px solid var(--accent)}
+.tp .nm{font-weight:700;min-width:0}
+.tp .pct{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+.bar{grid-column:1/-1;height:8px;border-radius:6px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;border-radius:6px}
+.pill{display:inline-block;font-size:12.5px;font-weight:700;padding:2px 9px;border-radius:20px;white-space:nowrap}
+.p-bad{background:var(--bad-soft);color:var(--bad)}.p-warn{background:var(--warn-soft);color:var(--warn)}.p-good{background:var(--good-soft);color:var(--good)}.p-new{background:var(--panel);color:var(--muted);border:1px solid var(--line)}
+.c-bad{background:var(--bad)}.c-warn{background:var(--warn)}.c-good{background:var(--good)}.c-new{background:var(--muted)}
+/* quiz */
+.prog{height:8px;background:var(--line);border-radius:6px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--accent);transition:width .3s}
+.qtopic{font-size:13px;font-weight:700;color:var(--accent);letter-spacing:.04em;text-transform:uppercase}
+.qtext{font-size:22px;font-weight:600;line-height:1.45}
+.opts{display:grid;gap:10px}
+.opt{background:var(--panel);color:var(--ink);border:2px solid var(--line);text-align:left;font-weight:600;font-size:18px;padding:13px 16px}
+.opt:hover:not(:disabled){border-color:var(--navy2)}
+.opt.right{background:var(--good-soft);border-color:var(--good);color:var(--good);opacity:1}
+.opt.wrong{background:var(--bad-soft);border-color:var(--bad);color:var(--bad);opacity:1}
+.fb{border-radius:12px;padding:12px 16px;font-size:16px}
+.fb.ok{background:var(--good-soft);color:var(--ink);border-left:5px solid var(--good)}
+.fb.no{background:var(--bad-soft);color:var(--ink);border-left:5px solid var(--bad)}
+.fb b{font-family:var(--display)}
+/* result */
+.score{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.score .big{font-family:var(--display);font-size:52px;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums}
+.delta{font-weight:700;font-size:15px}
+.hist{display:flex;align-items:flex-end;gap:6px;height:110px;padding-top:18px;border-bottom:2px solid var(--line);overflow-x:auto}
+.hist div{flex:0 0 34px;background:var(--navy2);border-radius:6px 6px 0 0;position:relative;min-height:4px}
+.hist div.now{background:var(--accent)}
+.hist div span{position:absolute;top:-18px;left:0;right:0;text-align:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.histlab{display:flex;gap:6px;font-size:12px;color:var(--muted)}
+.histlab span{flex:0 0 34px;text-align:center}
+table.res{width:100%;border-collapse:collapse;font-size:15px}
+table.res th{text-align:left;color:var(--muted);font-weight:600;font-size:13px;padding:6px 6px;border-bottom:1px solid var(--line)}
+table.res td{padding:8px 6px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums;vertical-align:middle}
+.tscroll{overflow-x:auto}
+.note{background:var(--note);border-left:5px solid var(--accent);border-radius:10px;padding:12px 16px}
+.list{margin:0;padding-left:20px}
+.list li{margin:4px 0}
+/* lesson */
+.rule{background:var(--panel);border-radius:12px;padding:14px 16px}
+.rule p{margin:4px 0}
+.ex{font-family:var(--body);font-size:17px}
+.ex b{color:var(--accent)}
+.warnbar{background:var(--warn-soft);color:var(--ink);border-radius:10px;padding:10px 14px;font-size:14px}
+@media (max-width:480px){h1{font-size:25px}.qtext{font-size:19px}.opt{font-size:16px}.score .big{font-size:42px}}
+@media (prefers-reduced-motion:reduce){.prog i{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top"><div class="brand">ENG <span>Spark</span> · Review Quest</div><div class="who" id="who"></div></header>
+  <main id="app"></main>
+</div>
+
+<script>
+/* =================== CONTENT =================== */
+const TOPICS=[
+ {id:"be",name:"Be / Do / Have",lesson:[
+  ["Verb to be (am / is / are)","I → <b>am</b> · He / She / It / 1 คน → <b>is</b> · You / We / They / หลายคน → <b>are</b>","My sister <b>is</b> a nurse. · We <b>are</b> friends."],
+  ["Do / Does (คำถาม-ปฏิเสธ)","I / You / We / They → <b>do</b> · He / She / It → <b>does</b> แล้วกริยาหลักกลับเป็นช่อง 1","<b>Does</b> he like milk? · He <b>doesn't</b> like milk."],
+  ["Have / Has","I / You / We / They → <b>have</b> · He / She / It → <b>has</b>","She <b>has</b> long hair."],
+  ["เคล็ดลับ","ถ้าตามด้วยคำคุณศัพท์ (happy, hungry) หรือคำนามบอกว่าเป็นอะไร ใช้ <b>be</b> · ถ้าตามด้วยกริยา ใช้ <b>do/does</b>","<b>Are</b> you happy? · <b>Do</b> you play guitar?"]]},
+ {id:"ps",name:"Present Simple",lesson:[
+  ["ใช้เมื่อไหร่","เรื่องที่ทำเป็นประจำ นิสัย และความจริงทั่วไป","I <b>go</b> to school by bus every day. · The sun <b>rises</b> in the east."],
+  ["โครงสร้าง","He / She / It + กริยาเติม <b>s / es</b> · คนอื่นใช้กริยาช่อง 1","She <b>watches</b> TV. · They <b>watch</b> TV."],
+  ["การเติม s / es","ลงท้าย ch, sh, s, x, o → เติม <b>es</b> · พยัญชนะ + y → เปลี่ยนเป็น <b>ies</b>","watch → watch<b>es</b> · do → do<b>es</b> · cry → cr<b>ies</b>"],
+  ["คำบอกเวลา","every day, usually, always, often, sometimes, never","He <b>usually</b> walks to school."]]},
+ {id:"pc",name:"Present Continuous",lesson:[
+  ["ใช้เมื่อไหร่","สิ่งที่<b>กำลังทำอยู่ตอนนี้</b>","Look! The children <b>are playing</b> in the rain."],
+  ["โครงสร้าง","<b>am / is / are + V-ing</b>","I <b>am doing</b> my homework now."],
+  ["การเติม -ing","ลงท้าย e → ตัด e (write → writ<b>ing</b>) · สระเดียว + พยัญชนะเดียว → ซ้ำตัวท้าย (swim → swim<b>ming</b>, sit → sit<b>ting</b>)","She is <b>writing</b> a letter."],
+  ["คำบอกเวลา","now, right now, at the moment, Look!, Listen!, Be quiet!","<b>Listen!</b> Someone <b>is playing</b> the piano."]]},
+ {id:"past",name:"Past Simple",lesson:[
+  ["ใช้เมื่อไหร่","เรื่องที่เกิดขึ้นและจบไปแล้วในอดีต","I <b>visited</b> my grandma last Sunday."],
+  ["โครงสร้าง","กริยาช่อง 2 (เติม -ed หรือกริยาผิดปกติ) · Be: I/He/She/It → <b>was</b>, You/We/They → <b>were</b>","We <b>were</b> at home. He <b>was</b> tired."],
+  ["คำถาม / ปฏิเสธ","ใช้ <b>did / didn't</b> แล้วกริยากลับเป็น<b>ช่อง 1</b>","<b>Did</b> you <b>see</b> it? · I <b>didn't go</b> to school."],
+  ["การเติม -ed","stop → sto<b>pped</b> · study → stud<b>ied</b> · คำบอกเวลา: yesterday, last week, ago","She <b>studied</b> hard two days <b>ago</b>."]]},
+ {id:"v2",name:"Irregular Verbs (V2)",lesson:[
+  ["กริยาผิดปกติ","กริยาเหล่านี้ไม่เติม -ed ต้องจำรูปช่อง 2","go → <b>went</b> · eat → <b>ate</b> · see → <b>saw</b> · buy → <b>bought</b>"],
+  ["จับกลุ่มช่วยจำ","-ought / -aught: buy → bought, think → thought, bring → brought, catch → caught, teach → taught","i → a: swim → <b>swam</b>, drink → <b>drank</b>, ring → <b>rang</b>, begin → <b>began</b>"],
+  ["อีกกลุ่ม","write → <b>wrote</b> · speak → <b>spoke</b> · break → <b>broke</b> · sleep → <b>slept</b> · leave → <b>left</b>","fall → <b>fell</b> · fly → <b>flew</b> · win → <b>won</b> · take → <b>took</b>"],
+  ["วิธีฝึก","พิมพ์คำตอบเอง จะจำได้ดีกว่ากดเลือก","ข้อที่ผิดจะวนกลับมาในโหมด ‘ข้อที่เคยผิด’"]]},
+ {id:"pcont",name:"Past Continuous (when / while)",lesson:[
+  ["ใช้เมื่อไหร่","สิ่งที่<b>กำลังทำอยู่</b> ณ เวลาหนึ่งในอดีต","I <b>was watching</b> TV at 8 pm last night."],
+  ["โครงสร้าง","<b>was / were + V-ing</b> · I/He/She/It → was · You/We/They → were","They <b>were playing</b> football."],
+  ["Dot & line","เส้นยาว (กำลังทำ) = was/were + V-ing · จุด (เหตุการณ์แทรก) = V2","She <b>was cooking</b> when the phone <b>rang</b>."],
+  ["when / while","<b>while</b> + เส้นยาว · <b>when</b> + จุด","<b>While</b> I was walking home, I saw my teacher."]]},
+ {id:"fut",name:"Future: will / going to",lesson:[
+  ["will + V1","ตัดสินใจทันที, คาดเดา (I think…), ขอร้อง/สัญญา","I'm thirsty. — I <b>will</b> get you some water. · I think it <b>will</b> rain."],
+  ["am / is / are going to + V1","มีแผนไว้แล้ว หรือเห็นหลักฐานตรงหน้า","We bought tickets. We <b>are going to</b> watch a movie. · Look at the clouds! It's <b>going to</b> rain."],
+  ["ข้อควรระวัง","will ตามด้วย<b>ช่อง 1</b> เสมอ ไม่มี to ไม่เติม s","I will <b>call</b> you. (ไม่ใช่ will to call / will calls)"],
+  ["คำบอกเวลา","tomorrow, next week, next year, tonight, in the future","He <b>will be</b> a doctor in the future."]]},
+ {id:"wh",name:"Wh-Questions",lesson:[
+  ["คำถามพื้นฐาน","What = อะไร · Where = ที่ไหน · When = เมื่อไหร่ · Who = ใคร · Why = ทำไม · How = อย่างไร","<b>Where</b> do you live? — In Bua Yai."],
+  ["Whose / Which","<b>Whose</b> = ของใคร · <b>Which</b> = อันไหน (มีตัวเลือก)","<b>Whose</b> bag is this? · <b>Which</b> do you prefer, tea or coffee?"],
+  ["How + …","How old / How many / How much / How often","<b>How many</b> brothers do you have?"],
+  ["เปลี่ยนเป็นคำถาม","Wh + do/does/did + ประธาน + V1 …?","She lives in Korat. → <b>Where does</b> she live?"]]},
+ {id:"some",name:"Some / Any / No / Every · There is / are",lesson:[
+  ["There is / There are","<b>is</b> = 1 สิ่ง หรือนามนับไม่ได้ · <b>are</b> = หลายสิ่ง","There <b>is</b> a cat. · There <b>are</b> some apples."],
+  ["some / any","<b>some</b> = ประโยคบอกเล่า · <b>any</b> = ปฏิเสธ และคำถาม","I have <b>some</b> pencils. · Do you have <b>any</b> brothers?"],
+  ["no","no = ไม่มีเลย (ประโยคบอกเล่า ไม่ใช้ not ซ้ำ)","There is <b>no</b> water. = There isn't <b>any</b> water."],
+  ["every- / some- / any- / no-","everybody, somebody, anybody, nobody, anywhere… ใช้กับกริยาเอกพจน์","<b>Everybody is</b> here. · I can't find it <b>anywhere</b>."]]},
+ {id:"rel",name:"Who / Which / Whose / Whom ⭐",lesson:[
+  ["who","ใช้แทน<b>คน</b>","The girl <b>who</b> is singing is my sister."],
+  ["which","ใช้แทน<b>สัตว์ / สิ่งของ</b>","This is the book <b>which</b> I bought yesterday."],
+  ["whose","แสดง<b>ความเป็นเจ้าของ</b> ตามด้วยคำนามเสมอ","I saw a man <b>whose</b> car is red."],
+  ["whom","ใช้แทนคนที่เป็น<b>กรรม</b> (ถูกกระทำ) มักตามหลัง to / with","The woman to <b>whom</b> I spoke was kind."]]},
+ {id:"voc",name:"Vocab Spark S1 + S2",lesson:[
+  ["S1 Events & Accidents","accident · suddenly · fall · break · drop · crash · hurt · scared","happen · notice · slip · injure · emergency · ambulance"],
+  ["S2 Experiences & Hobbies","experience · hobby · travel · abroad · try · collect · exciting · visit","already · recently · achievement"],
+  ["Word partners","take a photo · start to rain · the lights went out","go camping · ride a horse · take part in"],
+  ["วิธีฝึก","ทายความหมายภาษาไทย และทายคำศัพท์จากภาษาไทย","ทบทวนใน Vocab Spark ทุกวันควบคู่กันไป"]]}
+];
+const TNAME=Object.fromEntries(TOPICS.map(t=>[t.id,t.name]));
+const MC=(t,q,o,a,e)=>({t,q,o,a,e});
+const BANK=[
+ // be / do / have
+ MC("be","My sister ___ a nurse.",["am","is","are","be"],1,"sister = 1 คน → is"),
+ MC("be","We ___ in the same class.",["is","am","are","be"],2,"We → are"),
+ MC("be","___ your brother like football?",["Do","Does","Is","Are"],1,"ประธาน 1 คน + กริยา like → Does"),
+ MC("be","They ___ have a car.",["doesn't","isn't","don't","aren't"],2,"They + กริยา have → don't"),
+ MC("be","She ___ long hair.",["have","has","is","does"],1,"She → has"),
+ MC("be","I ___ hungry now.",["is","are","am","do"],2,"I → am (hungry เป็นคำคุณศัพท์ ใช้ be)"),
+ MC("be","___ you happy today?",["Do","Does","Are","Is"],2,"happy เป็นคำคุณศัพท์ → ใช้ be: Are you happy?"),
+ MC("be","___ you play the guitar?",["Are","Do","Does","Is"],1,"you + กริยา play → Do"),
+ MC("be","He ___ a new phone.",["have","has","is","are"],1,"He → has"),
+ MC("be","Tom and Mai ___ students.",["is","am","are","has"],2,"2 คน → are"),
+ MC("be","Which sentence is correct?",["He don't like milk.","He doesn't likes milk.","He doesn't like milk.","He isn't like milk."],2,"doesn't + กริยาช่อง 1 (like ไม่เติม s)"),
+ MC("be","My cats ___ very cute.",["is","are","has","does"],1,"cats หลายตัว → are"),
+ // present simple
+ MC("ps","My dad ___ coffee every morning.",["drink","drinks","drinking","is drink"],1,"dad = He + every morning → drinks"),
+ MC("ps","The sun ___ in the east.",["rise","rises","rising","rose"],1,"ความจริงทั่วไป + ประธานเอกพจน์ → rises"),
+ MC("ps","She ___ her homework after dinner.",["do","dos","does","doing"],2,"do + es → does"),
+ MC("ps","We usually ___ to school by bus.",["go","goes","going","are go"],0,"We + usually → go"),
+ MC("ps","He ___ TV on weekdays.",["doesn't watch","don't watch","doesn't watches","not watch"],0,"He → doesn't + V1"),
+ MC("ps","___ she live in Korat?",["Do","Does","Is","Are"],1,"She + กริยา live → Does"),
+ MC("ps","My brother ___ English very well.",["speak","speaks","speaking","is speak"],1,"brother = He → speaks"),
+ MC("ps","Cats ___ fish.",["likes","like","liking","is like"],1,"Cats หลายตัว → like (ไม่เติม s)"),
+ MC("ps","Which word goes with Present Simple?",["now","yesterday","every day","tomorrow"],2,"every day = ทำเป็นประจำ"),
+ MC("ps","The baby ___ a lot at night.",["cry","crys","cries","crying"],2,"พยัญชนะ + y → ies: cries"),
+ MC("ps","Mai ___ the dishes every evening.",["wash","washs","washes","washing"],2,"ลงท้าย sh → es: washes"),
+ MC("ps","Does he play tennis? — Yes, he ___.",["do","does","is","plays"],1,"ตอบสั้นด้วยคำช่วยเดิม → Yes, he does."),
+ // present continuous
+ MC("pc","Look! The children ___ in the rain.",["play","plays","are playing","played"],2,"Look! = กำลังเกิดขึ้น → are playing"),
+ MC("pc","Be quiet! The baby ___.",["sleep","sleeps","is sleeping","slept"],2,"Be quiet! = กำลังหลับอยู่ → is sleeping"),
+ MC("pc","I ___ my homework right now.",["do","am doing","does","did"],1,"right now → am doing"),
+ MC("pc","Listen! Someone ___ the piano.",["is playing","plays","play","played"],0,"Listen! → is playing"),
+ MC("pc","They ___ watching TV now. They are sleeping.",["aren't","isn't","don't","doesn't"],0,"They + V-ing → aren't"),
+ MC("pc","What ___ you doing?",["do","are","is","does"],1,"you + V-ing → are"),
+ MC("pc","She is ___ a letter now.",["write","writing","writes","wrote"],1,"write ตัด e → writing"),
+ MC("pc","He is ___ in the pool.",["swiming","swimming","swims","swim"],1,"swim → ซ้ำ m → swimming"),
+ MC("pc","Which word goes with Present Continuous?",["usually","every day","at the moment","last night"],2,"at the moment = ตอนนี้"),
+ MC("pc","___ it raining now?",["Does","Do","Is","Are"],2,"it + V-ing → Is"),
+ MC("pc","My mom ___ dinner in the kitchen now.",["cooks","is cooking","cooked","cook"],1,"now → is cooking"),
+ MC("pc","We ___ under a tree at the moment.",["sit","are siting","are sitting","sits"],2,"sit → ซ้ำ t → sitting"),
+ // past simple
+ MC("past","I ___ my grandma last Sunday.",["visit","visited","visiting","visits"],1,"last Sunday → V2: visited"),
+ MC("past","They ___ football yesterday afternoon.",["play","plays","played","playing"],2,"yesterday → played"),
+ MC("past","___ you see the movie last night?",["Do","Did","Were","Are"],1,"อดีต + กริยา see → Did"),
+ MC("past","She didn't ___ breakfast this morning.",["eat","ate","eats","eating"],0,"didn't + V1 → eat"),
+ MC("past","We ___ at home yesterday.",["was","were","are","is"],1,"We + อดีต → were"),
+ MC("past","He ___ tired after the game.",["were","was","is","are"],1,"He + อดีต → was"),
+ MC("past","Did he go to school yesterday? — No, he ___.",["doesn't","didn't","wasn't","don't"],1,"ถามด้วย Did → ตอบ didn't"),
+ MC("past","My dad ___ the car at the red light.",["stoped","stopped","stopping","stops"],1,"stop → ซ้ำ p → stopped"),
+ MC("past","Which word goes with Past Simple?",["tomorrow","now","two days ago","every day"],2,"ago = ที่แล้ว → อดีต"),
+ MC("past","She ___ hard for the test last week.",["studyed","studied","studies","study"],1,"พยัญชนะ + y → ied: studied"),
+ MC("past","Where ___ you go last weekend?",["do","did","were","are"],1,"last weekend + กริยา go → did"),
+ MC("past","Which sentence is correct?",["I didn't went to school.","I didn't go to school.","I don't went to school.","I not go to school."],1,"didn't + V1 → didn't go"),
+ // past continuous
+ MC("pcont","I ___ TV at 8 pm last night.",["watch","am watching","was watching","were watching"],2,"เวลาในอดีต + I → was watching"),
+ MC("pcont","They ___ football when it started to rain.",["was playing","were playing","are playing","play"],1,"They → were + V-ing (เส้นยาว)"),
+ MC("pcont","She was cooking when the phone ___.",["rings","was ringing","rang","ring"],2,"เหตุการณ์แทรก (จุด) → V2: rang"),
+ MC("pcont","___ I was walking home, I saw my teacher.",["While","During","At","Because"],0,"while + เส้นยาว (was walking)"),
+ MC("pcont","We were eating dinner ___ the lights went out.",["while","when","during","because"],1,"when + จุด (went out)"),
+ MC("pcont","What ___ you doing at 9 pm yesterday?",["was","were","did","are"],1,"you → were"),
+ MC("pcont","He ___ sleeping when I called him.",["were","was","is","did"],1,"He → was"),
+ MC("pcont","The boys were swimming when a big wave ___ them.",["hit","was hitting","hits","hitting"],0,"คลื่นซัด = จุด → V2: hit"),
+ MC("pcont","While my mom was cooking, I ___ my homework.",["was doing","am doing","do","does"],0,"while + เส้นยาว 2 เส้น → was doing"),
+ MC("pcont","Which sentence is correct?",["I was walk to school.","I was walking to school.","I were walking to school.","I walking to school."],1,"I + was + V-ing"),
+ MC("pcont","It ___ when we left school.",["was raining","were raining","is raining","rains"],0,"It → was raining"),
+ MC("pcont","At 7 am yesterday, my brother ___ breakfast.",["is eating","was eating","were eating","eats"],1,"เวลาในอดีต + brother → was eating"),
+ // future
+ MC("fut","I think it ___ rain tomorrow.",["will","is","does","was"],0,"I think… = คาดเดา → will"),
+ MC("fut","Look at those dark clouds! It's ___ rain.",["going to","will","go","goes to"],0,"เห็นหลักฐาน → going to"),
+ MC("fut","\"I'm thirsty.\" — \"I ___ get you some water.\"",["going to","will","am","did"],1,"ตัดสินใจทันที → will"),
+ MC("fut","We bought the tickets. We ___ watch a movie tonight.",["are going to","will to","went","were"],0,"มีแผนแล้ว → are going to"),
+ MC("fut","She ___ visit her grandma next week. (มีแผนแล้ว)",["is going to","will to","going to","goes to"],0,"She + is going to + V1"),
+ MC("fut","___ you help me, please?",["Will","Are","Do","Going"],0,"ขอร้อง → Will you…?"),
+ MC("fut","They ___ going to play football tomorrow.",["is","am","are","will"],2,"They → are going to"),
+ MC("fut","I ___ go out tonight. I'm too tired.",["won't","don't","am not going","doesn't"],0,"won't = will not + V1"),
+ MC("fut","Which word goes with the future?",["yesterday","next week","every day","now"],1,"next week = อนาคต"),
+ MC("fut","He will ___ a doctor in the future.",["is","be","being","been"],1,"will + V1 → be"),
+ MC("fut","Is she going to ___ a new bike?",["buy","buys","bought","buying"],0,"going to + V1 → buy"),
+ MC("fut","Which sentence is correct?",["I will to call you.","I will call you.","I will calling you.","I wills call you."],1,"will + V1 ไม่มี to"),
+ // wh
+ MC("wh","___ is your birthday? — It's in May.",["What","When","Where","Who"],1,"ถามเวลา → When"),
+ MC("wh","___ do you live? — In Bua Yai.",["Where","When","Who","Why"],0,"ถามสถานที่ → Where"),
+ MC("wh","___ is your English teacher? — Kru Fluke.",["What","Which","Who","Whose"],2,"ถามคน → Who"),
+ MC("wh","___ bag is this? — It's Jenny's.",["Who","Whose","Which","What"],1,"ถามความเป็นเจ้าของ → Whose"),
+ MC("wh","___ are you late? — Because I missed the bus.",["Why","How","When","What"],0,"ตอบด้วย Because → Why"),
+ MC("wh","___ do you go to school? — By bike.",["What","How","Where","When"],1,"ถามวิธีการ → How"),
+ MC("wh","___ old are you? — I'm 14.",["What","How","Which","Who"],1,"How old = อายุเท่าไหร่"),
+ MC("wh","___ do you prefer, tea or coffee?",["Which","Who","Whose","Where"],0,"มีตัวเลือก → Which"),
+ MC("wh","___ time do you get up? — At 6 o'clock.",["What","Which","How","Who"],0,"What time = กี่โมง"),
+ MC("wh","She lives in Korat. → ___ does she live?",["What","Where","Who","When"],1,"in Korat = สถานที่ → Where"),
+ MC("wh","They went to the zoo by car. → How ___ they go to the zoo?",["do","did","were","are"],1,"went = อดีต → did"),
+ MC("wh","___ many brothers do you have?",["How","What","Which","Who"],0,"How many = กี่คน/กี่อัน"),
+ // some/any/there
+ MC("some","There ___ a cat on the sofa.",["is","are","am","be"],0,"1 ตัว → There is"),
+ MC("some","There ___ some apples in the box.",["is","are","am","has"],1,"apples หลายผล → There are"),
+ MC("some","I have ___ pencils in my bag.",["some","any","a","an"],0,"ประโยคบอกเล่า → some"),
+ MC("some","Do you have ___ brothers?",["some","any","a","every"],1,"ประโยคคำถาม → any"),
+ MC("some","There isn't ___ milk in the fridge.",["some","any","no","a"],1,"ประโยคปฏิเสธ → any"),
+ MC("some","There is ___ water in the bottle. It's empty.",["some","any","no","every"],2,"ว่างเปล่า + ประโยคบอกเล่า → no"),
+ MC("some","___ student in my class has a phone.",["Every","All","Many","Both"],0,"Every + นามเอกพจน์ (student, has)"),
+ MC("some","There isn't ___ in the room. It's empty.",["anybody","somebody","nobody","everybody"],0,"ปฏิเสธ → anybody"),
+ MC("some","I can't find my keys ___.",["anywhere","somewhere","nowhere","everywhere"],0,"can't (ปฏิเสธ) → anywhere"),
+ MC("some","___ is here! Let's start the class.",["Everybody","Anybody","Nothing","Anywhere"],0,"ทุกคนมาแล้ว → Everybody"),
+ MC("some","___ there any eggs in the fridge?",["Is","Are","Do","Have"],1,"eggs หลายฟอง → Are there…?"),
+ MC("some","There ___ no books on the table.",["is","are","have","has"],1,"books หลายเล่ม → are"),
+ // relative
+ MC("rel","The girl ___ is singing is my sister.",["who","which","whose","where"],0,"girl = คน → who"),
+ MC("rel","This is the book ___ I bought yesterday.",["who","which","whose","whom"],1,"book = สิ่งของ → which"),
+ MC("rel","I saw a man ___ car is red.",["who","which","whose","whom"],2,"ความเป็นเจ้าของ + นาม (car) → whose"),
+ MC("rel","The dog ___ lives next door is very noisy.",["who","which","whose","whom"],1,"dog = สัตว์ → which"),
+ MC("rel","He is the teacher ___ everyone likes.",["whom","which","whose","where"],0,"คนที่เป็นกรรม (ถูกชอบ) → whom"),
+ MC("rel","I have a friend ___ father is a doctor.",["who","whose","which","whom"],1,"พ่อของเพื่อน → whose"),
+ MC("rel","This is the phone ___ my mom gave me.",["who","which","whose","whom"],1,"phone = สิ่งของ → which"),
+ MC("rel","The boy ___ won the race is in ม.2.",["which","who","whose","whom"],1,"boy = คน (ประธาน) → who"),
+ MC("rel","The woman to ___ I spoke was very kind.",["who","whom","which","whose"],1,"หลัง to + คน → whom"),
+ MC("rel","A tiger is an animal ___ eats meat.",["who","which","whose","whom"],1,"animal → which"),
+ MC("rel","Which sentence is correct?",["The girl which sings is Mai.","The girl who sings is Mai.","The girl whose sings is Mai.","The girl whom sings is Mai."],1,"girl = คน (ประธาน) → who"),
+ MC("rel","The house ___ roof is blue is mine.",["which","who","whose","whom"],2,"หลังคาของบ้าน → whose roof"),
+];
+// V2 type-in
+const V2=[["go","went"],["eat","ate"],["see","saw"],["buy","bought"],["write","wrote"],["take","took"],["swim","swam"],["catch","caught"],["teach","taught"],["sleep","slept"],["break","broke"],["fall","fell"],["ring","rang"],["drink","drank"],["fly","flew"],["win","won"],["think","thought"],["bring","brought"],["leave","left"],["speak","spoke"],["make","made"],["give","gave"],["find","found"],["run","ran"]];
+V2.forEach(([b,p])=>BANK.push({t:"v2",type:"text",q:`Past Simple (V2) ของ “${b}” คือ?`,a:[p],e:`${b} → ${p}`}));
+// Vocab
+const VOC=[["accident","อุบัติเหตุ"],["suddenly","ทันใดนั้น"],["fall","ล้ม, ตก"],["break","ทำแตก, หัก"],["drop","ทำหล่น"],["crash","ชน"],["hurt","เจ็บ"],["scared","กลัว"],["happen","เกิดขึ้น"],["notice","สังเกตเห็น"],["slip","ลื่น"],["injure","ทำให้บาดเจ็บ"],["emergency","เหตุฉุกเฉิน"],["ambulance","รถพยาบาล"],["experience","ประสบการณ์"],["hobby","งานอดิเรก"],["travel","เดินทาง, ท่องเที่ยว"],["abroad","ต่างประเทศ"],["try","ลอง"],["collect","สะสม"],["exciting","น่าตื่นเต้น"],["visit","ไปเที่ยว, ไปเยี่ยม"],["already","แล้ว (เร็วกว่าที่คิด)"],["recently","เมื่อเร็ว ๆ นี้"],["achievement","ความสำเร็จ"]];
+function pick3(excl,arr){const pool=arr.filter(x=>x!==excl);for(let i=pool.length-1;i>0;i--){const j=Math.floor(seedRand(i+excl.length)*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}return pool.slice(0,3)}
+function seedRand(n){const x=Math.sin(n*9301+49297)*233280;return x-Math.floor(x)}
+VOC.forEach(([w,th],i)=>{
+  const others=pick3(th,VOC.map(v=>v[1]));const o=[th,...others];const k=i%4;[o[0],o[k]]=[o[k],o[0]];
+  BANK.push(MC("voc",`“${w}” แปลว่าอะไร?`,o,k,`${w} = ${th}`));
+  if(i%2===0){const ow=pick3(w,VOC.map(v=>v[0]));const o2=[w,...ow];const k2=(i+1)%4;[o2[0],o2[k2]]=[o2[k2],o2[0]];
+    BANK.push(MC("voc",`คำไหนแปลว่า “${th}”?`,o2,k2,`${th} = ${w}`))}
+});
+BANK.forEach((q,i)=>q.id=q.t+"-"+i);
+const BYT={};BANK.forEach(q=>(BYT[q.t]=BYT[q.t]||[]).push(q));
+const STUDENTS=["เจด้า","เจนนี่","ชมพู่","หนูติ๋ว"];
+
+/* =================== STORAGE =================== */
+const KEY="engspark-review-quest-v1";let DB={users:{},last:null},STORAGE_OK=true;
+try{const raw=localStorage.getItem(KEY);if(raw)DB=JSON.parse(raw);if(!DB.users)DB.users={}}catch(e){STORAGE_OK=false}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(DB))}catch(e){STORAGE_OK=false}}
+let ME=null;
+function user(){if(!ME)return null;if(!DB.users[ME])DB.users[ME]={rounds:[],stats:{},miss:{},prac:{}};return DB.users[ME]}
+
+/* =================== HELPERS =================== */
+const $=s=>document.getElementById("app");
+function shuffle(a){a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function pct(c,n){return n?Math.round(c/n*100):null}
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function status(acc,n){if(acc===null||n===0)return["new","ยังไม่ได้ทำ"];if(acc<60)return["bad","ต้องทบทวน"];if(acc<80)return["warn","ฝึกเพิ่มอีกนิด"];return n>=6?["good","เชี่ยวชาญ"]:["good","ผ่าน"]}
+function fmtDate(t){const d=new Date(t);return d.toLocaleDateString("th-TH",{day:"numeric",month:"short"})+" "+d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})}
+
+/* =================== QUIZ ENGINE =================== */
+let Q=null; // {mode:'round'|'topic'|'miss', topic, items:[], i, answers:[], locked}
+function buildRound(){const u=user();const items=[];
+  TOPICS.forEach(t=>{const pool=BYT[t.id];const missed=shuffle(pool.filter(q=>u.miss[q.id]));const rest=shuffle(pool.filter(q=>!u.miss[q.id]));
+    const chosen=[...missed.slice(0,1),...rest].slice(0,2);items.push(...chosen)});
+  return shuffle(items)}
+function startRound(){Q={mode:"round",items:buildRound(),i:0,answers:[],locked:false};renderQ()}
+function startTopic(id){const n=id==="v2"?10:8;Q={mode:"topic",topic:id,items:shuffle(BYT[id]).slice(0,n),i:0,answers:[],locked:false};renderQ()}
+function startMiss(){const u=user();const ids=Object.keys(u.miss);const items=shuffle(BANK.filter(q=>ids.includes(q.id))).slice(0,12);if(!items.length)return;Q={mode:"miss",items,i:0,answers:[],locked:false};renderQ()}
+function renderQ(){const q=Q.items[Q.i],n=Q.items.length;const title=Q.mode==="round"?"Check-up รอบที่ "+(user().rounds.length+1):Q.mode==="miss"?"ฝึกข้อที่เคยผิด":"ฝึก: "+TNAME[Q.topic];
+  let body;
+  if(q.type==="text"){body=`<form class="row" id="tform" onsubmit="event.preventDefault();answerText()"><input type="text" id="tin" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="พิมพ์คำตอบ"><button class="go" type="submit" id="tbtn">ตรวจ</button></form>`}
+  else body=`<div class="opts">${q.o.map((o,k)=>`<button class="opt" id="o${k}" onclick="answer(${k})">${esc(o)}</button>`).join("")}</div>`;
+  $().innerHTML=`<div class="card stack"><div class="row" style="justify-content:space-between"><b style="color:var(--navy)">${title}</b><span class="muted small">ข้อ ${Q.i+1} / ${n}</span></div>
+  <div class="prog"><i style="width:${Q.i/n*100}%"></i></div>
+  <div class="qtopic">${esc(TNAME[q.t])}</div><div class="qtext">${esc(q.q)}</div>${body}<div id="fb"></div>
+  <div class="row" style="justify-content:space-between"><button class="link" onclick="quitQ()">ออกจากแบบฝึก</button><button class="go" id="nx" hidden onclick="nextQ()">${Q.i+1<n?"ข้อต่อไป →":"ดูผล →"}</button></div></div>`;
+  const ti=document.getElementById("tin");if(ti)ti.focus()}
+function record(ok){const q=Q.items[Q.i],u=user();Q.answers.push({id:q.id,t:q.t,ok});
+  const s=u.stats[q.t]||(u.stats[q.t]={c:0,n:0});s.n++;if(ok)s.c++;
+  if(ok){if(u.miss[q.id]){u.miss[q.id]--;if(u.miss[q.id]<=0)delete u.miss[q.id]}}else u.miss[q.id]=2;
+  save();Q.locked=true;document.getElementById("nx").hidden=false;document.getElementById("nx").focus()}
+function feedback(ok,correctText,e){document.getElementById("fb").innerHTML=`<div class="fb ${ok?"ok":"no"}"><b>${ok?"ถูกต้อง! 🎉":"ยังไม่ถูก"}</b>${ok?"":` · คำตอบคือ <b>${esc(correctText)}</b>`}<br>${esc(e)}</div>`}
+function answer(k){if(Q.locked)return;const q=Q.items[Q.i],ok=k===q.a;
+  q.o.forEach((_,j)=>{const b=document.getElementById("o"+j);b.disabled=true;if(j===q.a)b.classList.add("right");else if(j===k)b.classList.add("wrong")});
+  feedback(ok,q.o[q.a],q.e);record(ok)}
+function answerText(){if(Q.locked)return;const q=Q.items[Q.i],inp=document.getElementById("tin");const v=inp.value.trim().toLowerCase();if(!v)return;
+  const ok=q.a.includes(v);inp.disabled=true;document.getElementById("tbtn").disabled=true;inp.style.borderColor=ok?"var(--good)":"var(--bad)";
+  feedback(ok,q.a[0],q.e);record(ok)}
+function nextQ(){Q.i++;Q.locked=false;if(Q.i<Q.items.length)renderQ();else finishQ()}
+function quitQ(){Q=null;home()}
+document.addEventListener("keydown",e=>{if(!Q||e.target.tagName==="INPUT")return;if(Q.locked&&e.key==="Enter"){e.preventDefault();nextQ()}else if(!Q.locked&&["1","2","3","4"].includes(e.key)&&Q.items[Q.i].o){answer(+e.key-1)}});
+
+/* =================== RESULTS =================== */
+function finishQ(){const u=user();const by={};Q.answers.forEach(a=>{const b=by[a.t]||(by[a.t]=[0,0]);b[1]++;if(a.ok)b[0]++});
+  const c=Q.answers.filter(a=>a.ok).length,n=Q.answers.length;
+  if(Q.mode==="round"){u.rounds.push({at:Date.now(),c,n,by});save();const mode=Q.mode;Q=null;roundResult(u.rounds.length-1)}
+  else if(Q.mode==="topic"){const t=Q.topic;const log=u.prac[t]||(u.prac[t]=[]);const prev=log.length?log[log.length-1]:null;log.push({at:Date.now(),c,n});save();Q=null;topicResult(t,c,n,prev)}
+  else{Q=null;missResult(c,n)}}
+function roundResult(idx){const u=user(),r=u.rounds[idx],prev=idx>0?u.rounds[idx-1]:null;
+  const rows=TOPICS.map(t=>{const now=r.by[t.id]||[0,0],p=prev&&prev.by[t.id]?prev.by[t.id]:null,s=u.stats[t.id]||{c:0,n:0},cum=pct(s.c,s.n);
+    const nowP=pct(now[0],now[1]),pP=p?pct(p[0],p[1]):null;let trend="ใหม่",cls="p-new";
+    if(pP!==null){if(nowP>pP){trend="↑ ดีขึ้น";cls="p-good"}else if(nowP<pP){trend="↓ ลดลง";cls="p-bad"}else{trend="= เท่าเดิม";cls="p-new"}}
+    let st=status(cum,s.n);if(now[1]&&now[0]===0)st=["bad","ต้องทบทวน"];else if(pP!==null&&nowP<pP&&st[0]==="good")st=["warn","ฝึกเพิ่มอีกนิด"];
+    return {t,now,pP,nowP,trend,cls,cum,n:s.n,st}});
+  const need=rows.filter(x=>x.st[0]==="bad").sort((a,b)=>(a.cum??0)-(b.cum??0));
+  const more=rows.filter(x=>x.st[0]==="warn").sort((a,b)=>(a.cum??0)-(b.cum??0));
+  const up=rows.filter(x=>x.trend.startsWith("↑")),down=rows.filter(x=>x.trend.startsWith("↓"));
+  const d=prev?r.c-prev.c:null;
+  const hist=u.rounds.slice(-12);const max=Math.max(...hist.map(h=>h.n));const start=u.rounds.length-hist.length;
+  const recBtn=x=>`<li><b>${esc(x.t.name)}</b> <span class="muted small">(สะสม ${x.cum??0}%)</span> · <button class="link" onclick="lesson('${x.t.id}')">ไปทบทวน →</button></li>`;
+  $().innerHTML=`<div class="stack">
+  <div class="card stack"><h2>ผล Check-up รอบที่ ${idx+1}</h2>
+   <div class="score"><span class="big">${r.c}/${r.n}</span><span class="muted">(${pct(r.c,r.n)}%)</span>${d===null?`<span class="pill p-new">รอบแรก</span>`:`<span class="delta" style="color:${d>0?"var(--good)":d<0?"var(--bad)":"var(--muted)"}">${d>0?"↑ +"+d:d<0?"↓ "+d:"= เท่ารอบก่อน"} จากรอบที่แล้ว</span>`}</div>
+   ${u.rounds.length>1?`<div><div class="hist" aria-label="คะแนนแต่ละรอบ">${hist.map((h,i)=>`<div class="${start+i===idx?"now":""}" style="height:${h.c/max*100}%"><span>${h.c}</span></div>`).join("")}</div><div class="histlab">${hist.map((h,i)=>`<span>R${start+i+1}</span>`).join("")}</div></div>`:""}
+  </div>
+  <div class="card stack"><h2>จุดที่ต้องทบทวนจากรอบนี้</h2>
+   ${need.length?`<div><h3 style="color:var(--bad)">🔴 ทบทวนก่อนเลย</h3><ol class="list">${need.slice(0,3).map(recBtn).join("")}</ol>${need.length>3?`<div class="muted small">ตามด้วย: ${need.slice(3).map(x=>esc(x.t.name)).join(" · ")} (ทำทีละเรื่อง 3 เรื่องแรกก่อน แล้วค่อยทำ Check-up ใหม่)</div>`:""}</div>`:""}
+   ${more.length?`<div><h3 style="color:var(--warn)">🟠 ฝึกเพิ่มอีกนิด</h3><ol class="list">${more.map(recBtn).join("")}</ol></div>`:""}
+   ${!need.length&&!more.length?`<div class="note">เยี่ยมมาก! ทุกเรื่องผ่านเกณฑ์แล้ว ลองทำ Check-up อีกรอบเพื่อยืนยันว่าแม่นจริง 💪</div>`:""}
+   ${up.length?`<div class="small"><b style="color:var(--good)">พัฒนาขึ้นจากรอบก่อน:</b> ${up.map(x=>esc(x.t.name)).join(" · ")}</div>`:""}
+   ${down.length?`<div class="small"><b style="color:var(--bad)">คะแนนลดลงจากรอบก่อน:</b> ${down.map(x=>esc(x.t.name)).join(" · ")}</div>`:""}
+   <div class="muted small">รอบละ 2 ข้อต่อเรื่อง ผลรอบเดียวจึงแกว่งได้ ระบบตัดสินจาก <b>คะแนนสะสมทุกรอบ + ทุกครั้งที่ฝึก</b> และคะแนนรอบล่าสุดรวมกัน</div>
+  </div>
+  <div class="card stack"><h2>รายละเอียดทุกเรื่อง</h2><div class="tscroll"><table class="res"><tr><th>เรื่อง</th><th>รอบนี้</th><th>รอบก่อน</th><th>สะสม</th><th>สถานะ</th></tr>
+   ${rows.map(x=>`<tr><td><button class="link" onclick="lesson('${x.t.id}')">${esc(x.t.name)}</button></td><td>${x.now[0]}/${x.now[1]}</td><td>${x.pP===null?"–":x.pP+"%"} <span class="pill ${x.cls}">${x.trend}</span></td><td>${x.cum??0}% <span class="muted small">(${x.n} ข้อ)</span></td><td><span class="pill p-${x.st[0]}">${x.st[1]}</span></td></tr>`).join("")}</table></div></div>
+  <div class="row"><button class="go" onclick="${need.length||more.length?`lesson('${(need[0]||more[0]).t.id}')`:"startRound()"}">${need.length||more.length?"เริ่มทบทวนเรื่องแรก →":"ทำ Check-up อีกรอบ"}</button>${Object.keys(u.miss).length?`<button class="alt" onclick="startMiss()">ฝึกข้อที่เคยผิด (${Object.keys(u.miss).length})</button>`:""}<button class="alt" onclick="home()">หน้าหลัก</button></div>
+  </div>`;window.scrollTo(0,0)}
+function topicResult(t,c,n,prev){const u=user(),s=u.stats[t],cum=pct(s.c,s.n),st=status(cum,s.n);const p=prev?pct(prev.c,prev.n):null,nowP=pct(c,n);
+  $().innerHTML=`<div class="card stack"><h2>ฝึก ${esc(TNAME[t])} เสร็จแล้ว</h2>
+  <div class="score"><span class="big">${c}/${n}</span>${p===null?`<span class="pill p-new">ฝึกครั้งแรก</span>`:`<span class="delta" style="color:${nowP>p?"var(--good)":nowP<p?"var(--bad)":"var(--muted)"}">${nowP>p?"↑ ดีขึ้น":nowP<p?"↓ ลดลง":"= เท่าเดิม"} (ครั้งก่อน ${p}%)</span>`}</div>
+  <div>คะแนนสะสมเรื่องนี้: <b>${cum}%</b> จาก ${s.n} ข้อ · <span class="pill p-${st[0]}">${st[1]}</span></div>
+  <div class="note">${st[0]==="good"?"เรื่องนี้ผ่านแล้ว ไปทบทวนเรื่องอื่น หรือทำ Check-up รอบใหม่เพื่อดูพัฒนาการรวมได้เลย":"ลองอ่านสรุปอีกรอบ แล้วฝึกซ้ำได้ไม่จำกัด คะแนนสะสมถึง 80% ขึ้นไปถือว่าผ่าน"}</div>
+  <div class="row"><button class="go" onclick="startTopic('${t}')">ฝึกเรื่องนี้อีกรอบ</button><button class="alt" onclick="lesson('${t}')">อ่านสรุปอีกครั้ง</button><button class="alt" onclick="home()">หน้าหลัก</button></div></div>`;window.scrollTo(0,0)}
+function missResult(c,n){const left=Object.keys(user().miss).length;
+  $().innerHTML=`<div class="card stack"><h2>ฝึกข้อที่เคยผิด</h2><div class="score"><span class="big">${c}/${n}</span></div>
+  <div class="note">${left?`ยังเหลือข้อที่ต้องแก้อีก ${left} ข้อ (ข้อที่เคยผิดต้องตอบถูก 2 ครั้งจึงหายจากรายการ)`:"เคลียร์ข้อที่เคยผิดหมดแล้ว! 🎉"}</div>
+  <div class="row">${left?`<button class="go" onclick="startMiss()">ฝึกต่อ</button>`:""}<button class="alt" onclick="startRound()">ทำ Check-up รอบใหม่</button><button class="alt" onclick="home()">หน้าหลัก</button></div></div>`;window.scrollTo(0,0)}
+
+/* =================== LESSON =================== */
+function lesson(id){const t=TOPICS.find(x=>x.id===id),u=user(),s=u.stats[id]||{c:0,n:0},cum=pct(s.c,s.n),st=status(cum,s.n);
+  $().innerHTML=`<div class="card stack"><button class="link" style="align-self:flex-start" onclick="home()">← หน้าหลัก</button>
+  <h1>${esc(t.name)}</h1><div class="row"><span class="pill p-${st[0]}">${st[1]}</span><span class="muted small">สะสม ${cum??0}% · ทำไปแล้ว ${s.n} ข้อ · ฝึกเรื่องนี้ ${(u.prac[id]||[]).length} ครั้ง</span></div>
+  ${t.lesson.map(l=>`<div class="rule"><h3>${l[0]}</h3><p>${l[1]}</p><p class="ex">${l[2]}</p></div>`).join("")}
+  <div class="row"><button class="go" onclick="startTopic('${id}')">เริ่มฝึก ${id==="v2"?10:8} ข้อ →</button></div></div>`;window.scrollTo(0,0)}
+
+/* =================== HOME =================== */
+function pickName(n){n=(n||"").trim();if(!n)return;ME=n;DB.last=n;user();save();home()}
+function logout(){ME=null;home()}
+function copySummary(){const u=user();const last=u.rounds[u.rounds.length-1];
+  let t=`📘 ENG Spark Review Quest\n👤 ${ME}\n🔁 Check-up ${u.rounds.length} รอบ${last?` · ล่าสุด ${last.c}/${last.n}`:""}\n${u.rounds.length?"📈 คะแนนทุกรอบ: "+u.rounds.map(r=>r.c+"/"+r.n).join(" → ")+"\n":""}\n`;
+  TOPICS.forEach(x=>{const s=u.stats[x.id]||{c:0,n:0},c=pct(s.c,s.n),st=status(c,s.n);t+=`${st[0]==="bad"?"🔴":st[0]==="warn"?"🟠":st[0]==="good"?"🟢":"⚪"} ${x.name}: ${c??"-"}${c===null?"":"%"} (${s.n} ข้อ)\n`});
+  const box=document.getElementById("sumbox");box.hidden=false;box.value=t;
+  const done=()=>{document.getElementById("cpmsg").textContent="คัดลอกแล้ว วางใน LINE ส่งครูได้เลย"};
+  try{navigator.clipboard.writeText(t).then(done,()=>{box.select();document.getElementById("cpmsg").textContent="กดค้างที่ข้อความเพื่อคัดลอก"})}catch(e){box.select()}}
+function home(){Q=null;document.getElementById("who").innerHTML=ME?`👤 <b>${esc(ME)}</b> · <button class="link small" onclick="logout()">เปลี่ยนชื่อ</button>`:"";
+  if(!ME){$().innerHTML=`<div class="card stack"><h1>ทบทวนก่อนกลับมาเรียน 🔥</h1>
+   <p style="margin:0">ทำ Check-up 22 ข้อ (ทุกเรื่องที่เรียนมา เรื่องละ 2 ข้อ) แล้วระบบจะบอกว่าต้องทบทวนเรื่องไหน ทบทวนและฝึกซ้ำได้ไม่จำกัด ทุกรอบเก็บผลสะสมไว้ให้ดูพัฒนาการ</p>
+   <h3>เลือกชื่อของตัวเอง</h3><div class="names">${STUDENTS.map(n=>`<button onclick="pickName('${n}')">${n}</button>`).join("")}</div>
+   <form class="row" onsubmit="event.preventDefault();pickName(document.getElementById('nm').value)"><input type="text" id="nm" placeholder="หรือพิมพ์ชื่อเล่น"><button type="submit">เข้าใช้</button></form>
+   ${STORAGE_OK?`<div class="muted small">ผลจะถูกบันทึกในเครื่องนี้ ใช้มือถือ/แท็บเล็ตเครื่องเดิมทุกครั้งนะ</div>`:`<div class="warnbar">เบราว์เซอร์นี้บันทึกผลไม่ได้ (อาจเป็นโหมดไม่ระบุตัวตน) ทำแบบฝึกได้ แต่ปิดหน้าแล้วผลจะหาย</div>`}</div>`;return}
+  const u=user(),last=u.rounds[u.rounds.length-1],missN=Object.keys(u.miss).length;
+  const rows=TOPICS.map(t=>{const s=u.stats[t.id]||{c:0,n:0},c=pct(s.c,s.n),st=status(c,s.n);return{t,c,n:s.n,st}});
+  $().innerHTML=`<div class="stack">
+   <div class="card stack"><h1>สวัสดี ${esc(ME)} 👋</h1>
+    ${last?`<div class="score"><span class="big">${last.c}/${last.n}</span><span class="muted">Check-up ล่าสุด (รอบที่ ${u.rounds.length}) · ${fmtDate(last.at)}</span></div>`:`<p style="margin:0">เริ่มจาก Check-up รอบแรก เพื่อดูว่าเรื่องไหนแม่นแล้ว เรื่องไหนต้องทบทวน</p>`}
+    <div class="row"><button class="go" onclick="startRound()">${u.rounds.length?"ทำ Check-up รอบที่ "+(u.rounds.length+1):"เริ่ม Check-up รอบแรก"} →</button>
+    ${last?`<button class="alt" onclick="roundResult(${u.rounds.length-1})">ดูผลรอบล่าสุด</button>`:""}
+    ${missN?`<button class="alt" onclick="startMiss()">ฝึกข้อที่เคยผิด (${missN})</button>`:""}</div></div>
+   <div class="card stack"><div class="row" style="justify-content:space-between"><h2>ทบทวนรายเรื่อง</h2><span class="muted small">กดเพื่ออ่านสรุปและฝึก</span></div>
+    <div class="topics">${rows.map(x=>`<button class="tp" onclick="lesson('${x.t.id}')"><span class="nm">${esc(x.t.name)}</span><span class="pct"><span class="pill p-${x.st[0]}">${x.st[1]}</span> ${x.c===null?"":x.c+"%"}</span><span class="bar"><i class="c-${x.st[0]}" style="width:${x.c??0}%"></i></span></button>`).join("")}</div>
+    <div class="muted small">🔴 ต่ำกว่า 60% · 🟠 60–79% · 🟢 80% ขึ้นไป (คะแนนสะสมทุกครั้งที่ทำ)</div></div>
+   <div class="card stack"><h3>ส่งผลให้ครูฟลุ๊ค</h3><div class="row"><button class="alt" onclick="copySummary()">คัดลอกสรุปผลของฉัน</button><span class="muted small" id="cpmsg"></span></div><textarea id="sumbox" hidden readonly rows="8" style="width:100%;font:inherit;font-size:14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:10px"></textarea></div>
+  </div>`;window.scrollTo(0,0)}
+if(DB.last&&DB.users[DB.last])ME=DB.last;
+home();
+</script>
+</body>
+</html>
