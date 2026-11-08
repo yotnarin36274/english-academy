@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ENG Spark Homework</title>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#eceff2;--card:#fff;--ink:#1b2733;--muted:#5f6d79;--line:#d3dae0;--panel:#f1f5f9;--navy:#1b3a57;--navy2:#2a5d84;--orange:#e07a2f;--osoft:#f6e2d0;--note:#fdf4e6;--good:#2f8f6b;--goods:#e3f2eb;--bad:#c0392b;--bads:#f8e1de}
+@media (prefers-color-scheme: dark){:root{--bg:#111a23;--card:#18242f;--ink:#e7edf2;--muted:#9aa9b6;--line:#2c3b49;--panel:#1f2e3b;--navy:#9cc3e6;--navy2:#7fb0dc;--orange:#f0954f;--osoft:#3a2a1d;--note:#2d2419;--good:#5cc39a;--goods:#173328;--bad:#ec7b6e;--bads:#3a1f1c;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Sarabun,system-ui,sans-serif;font-size:17px;line-height:1.55}
+.wrap{max-width:680px;margin:0 auto;padding:16px max(16px,env(safe-area-inset-left)) 60px max(16px,env(safe-area-inset-right))}
+.brand{font-family:Fredoka,Sarabun,sans-serif;font-weight:700;font-size:20px;color:var(--navy);margin-bottom:12px}.brand span{color:var(--orange)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:12px;margin-bottom:14px}
+h1,h2{font-family:Fredoka,Sarabun,sans-serif;color:var(--navy);margin:0;line-height:1.25}h1{font-size:26px}h2{font-size:21px}
+.muted{color:var(--muted);font-size:15px}
+.tag{font-size:12.5px;font-weight:700;color:var(--orange);letter-spacing:.04em;text-transform:uppercase}
+.prog{height:8px;background:var(--line);border-radius:6px;overflow:hidden}.prog i{display:block;height:100%;background:var(--orange);transition:width .3s}
+.q{font-size:21px;font-weight:600}
+.opts{display:grid;gap:10px}
+button{font:inherit;font-weight:700;border-radius:12px;padding:12px 16px;cursor:pointer;border:2px solid transparent;background:var(--navy);color:var(--card)}
+button.go{background:var(--orange);color:#fff}
+button.alt{background:transparent;color:var(--navy);border-color:var(--navy)}
+.opt{background:var(--panel);color:var(--ink);border:2px solid var(--line);text-align:left;font-size:18px}
+.opt.right{background:var(--goods);border-color:var(--good);color:var(--good)}
+.opt.wrong{background:var(--bads);border-color:var(--bad);color:var(--bad)}
+.fb{border-radius:10px;padding:10px 14px;font-size:16px}.fb.ok{background:var(--goods);border-left:5px solid var(--good)}.fb.no{background:var(--bads);border-left:5px solid var(--bad)}
+input[type=text],textarea{font:inherit;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink);width:100%}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.plan{display:flex;flex-direction:column;gap:8px}
+.step{display:flex;gap:10px;align-items:center;background:var(--panel);border-radius:10px;padding:10px 12px}
+.step b{font-family:Fredoka,sans-serif;color:var(--orange);font-size:20px;min-width:24px}
+.note{background:var(--note);border-left:5px solid var(--orange);border-radius:10px;padding:10px 14px}
+.big{font-family:Fredoka,sans-serif;font-size:46px;color:var(--orange);line-height:1}
+</style>
+</head>
+<body>
+<div class="wrap"><div class="brand">ENG <span>Spark</span> · Homework</div><main id="app"></main></div>
+<script>
+const CLASS={"rematch":[{"q":"She ___ to school every day.","o":["go","goes","is going","went"],"a":1,"e":"every day → Present Simple · She + goes","tag":"ps","text":false},{"q":"Look! It ___.","o":["rains","is raining","rained","rain"],"a":1,"e":"Look! → กำลังเกิดขึ้น · is raining","tag":"pc","text":false},{"q":"I ___ my homework when my mom called.","o":["was doing","am doing","do","does"],"a":0,"e":"เส้นยาวในอดีต + when + จุด → was doing","tag":"pcont","text":false},{"q":"V2 of “buy” = ?","o":["buyed","bought","brought","boughten"],"a":1,"e":"buy → bought (brought มาจาก bring)","tag":"v2","text":false},{"q":"___ bag is that? — It's Jenny's.","o":["Who","Whose","Which","What"],"a":1,"e":"ถามความเป็นเจ้าของ → Whose","tag":"wh","text":false},{"q":"Look at those dark clouds! It ___ rain.","o":["will","is going to","goes to","is"],"a":1,"e":"เห็นหลักฐาน → is going to","tag":"fut","text":false},{"q":"There isn't ___ milk in the fridge.","o":["some","any","no","a"],"a":1,"e":"ประโยคปฏิเสธ → any","tag":"some","text":false},{"q":"We ___ at the beach yesterday.","o":["was","were","are","is"],"a":1,"e":"We + อดีต → were","tag":"past","text":false}],"ppps":[{"q":"___ you ever eaten sushi?","o":["Have","Did","Do","Are"],"a":0,"e":"Have you ever + V3 …?","tag":"pp-form","text":false},{"q":"I ___ to Chiang Mai last year.","o":["have gone","went","have been","go"],"a":1,"e":"last year = บอกเวลาที่จบแล้ว → Past Simple","tag":"pp-vs-ps","text":false},{"q":"She has never ___ a horse.","o":["rode","ridden","ride","riding"],"a":1,"e":"has never + V3 → ridden","tag":"v3","text":false},{"q":"Have you ever seen snow? — No, I ___.","o":["didn't","haven't","don't","hasn't"],"a":1,"e":"ถามด้วย Have → ตอบ haven't","tag":"pp-form","text":false},{"q":"They ___ the movie yesterday.","o":["have seen","saw","seen","see"],"a":1,"e":"yesterday → Past Simple · saw","tag":"pp-vs-ps","text":false},{"q":"My brother ___ been to Japan.","o":["have","has","is","did"],"a":1,"e":"brother = He → has been","tag":"pp-form","text":false},{"q":"When ___ you meet your best friend?","o":["have","did","has","do"],"a":1,"e":"When…? ถามเวลาในอดีต → Past Simple · did","tag":"pp-vs-ps","text":false},{"q":"Have you ever ___ a famous person?","o":["meet","met","meeting","meets"],"a":1,"e":"meet → met → met (V3)","tag":"v3","text":false},{"q":"⭐ I have lived here ___ 2020.","o":["for","since","ago","in"],"a":1,"e":"since + จุดเริ่มต้น (ปี, วัน, เวลา)","tag":"for-since","text":false},{"q":"⭐ We have studied English ___ five years.","o":["since","for","ago","from"],"a":1,"e":"for + ระยะเวลา (five years)","tag":"for-since","text":false},{"q":"⭐ I haven't finished my homework ___.","o":["already","yet","ever","since"],"a":1,"e":"ปฏิเสธ/คำถาม + yet (ท้ายประโยค)","tag":"already-yet","text":false},{"q":"⭐ She has ___ eaten lunch. She's full.","o":["yet","already","ever","since"],"a":1,"e":"บอกเล่า + already = ทำแล้ว (เร็วกว่าที่คิด)","tag":"already-yet","text":false}],"exit":[{"q":"I have never ___ durian.","o":["eat","ate","eaten","eating"],"a":2,"e":"have never + V3","tag":"v3","text":false},{"q":"___ she ever been to Korat?","o":["Have","Has","Did","Is"],"a":1,"e":"she → Has","tag":"pp-form","text":false},{"q":"Have you ever ridden a horse? — Yes, I ___.","o":["have","did","has","am"],"a":0,"e":"ตอบสั้น: Yes, I have.","tag":"pp-form","text":false},{"q":"I ___ my homework last night.","o":["have done","did","done","do"],"a":1,"e":"last night → Past Simple","tag":"pp-vs-ps","text":false},{"q":"⭐ He has worked here ___ three years.","o":["since","for","ago","yet"],"a":1,"e":"for + ระยะเวลา","tag":"for-since","text":false},{"q":"เขียน 1 ประโยค: สิ่งที่ฉัน “ไม่เคย” ทำ (I have never …)","tag":"text","text":true}],"v3":[["go","gone"],["eat","eaten"],["see","seen"],["do","done"],["have","had"],["take","taken"],["write","written"],["ride","ridden"],["swim","swum"],["fly","flown"],["drink","drunk"],["sing","sung"],["speak","spoken"],["break","broken"],["win","won"],["buy","bought"],["make","made"],["meet","met"],["sleep","slept"],["lose","lost"],["read","read"],["be","been"],["give","given"],["forget","forgotten"],["wear","worn"],["catch","caught"],["find","found"],["visit","visited"],["try","tried"],["play","played"],["travel","travelled|traveled"],["cook","cooked"],["teach","taught"],["drive","driven"],["fall","fallen"]]};
+const TAGS={"v3":"กริยาช่อง 3 (V3)","pp-form":"have/has + V3 · ever/never","pp-vs-ps":"Present Perfect vs Past Simple","for-since":"for / since","already-yet":"already / yet","ps":"Present Simple","pc":"Present Continuous","pcont":"Past Continuous","v2":"กริยาช่อง 2 (V2)","wh":"Wh-questions","fut":"will / going to","some":"some / any / there","past":"was / were"};
+const RULE={"pp-form":"have/has + V3 · He/She/It → has · ตอบสั้น: Yes, I have. / No, I haven't.","pp-vs-ps":"ไม่บอกเวลา / ever → Present Perfect · มีเวลาจบแล้ว (yesterday, last year, in 2024, When…?) → Past Simple","for-since":"for + ระยะเวลา (for 3 years) · since + จุดเริ่ม (since 2020)","already-yet":"already = ทำแล้ว (ประโยคบอกเล่า) · yet = ยัง (ปฏิเสธ/คำถาม ท้ายประโยค)","v3":"eat→eaten · go→gone/been · see→seen · write→written · swim→swum","ps":"He/She/It + V-s/es · คำถาม Does…?","pc":"am/is/are + V-ing · Look! Listen! now","pcont":"was/were + V-ing · while + เส้นยาว · when + จุด","v2":"กริยาช่อง 2 ผิดปกติ: bought, caught, thought…","wh":"When=เมื่อไหร่ Where=ที่ไหน Whose=ของใคร How=อย่างไร","fut":"will = ตัดสินใจทันที/คาดเดา · going to = มีแผน/มีหลักฐาน","some":"some = บอกเล่า · any = ปฏิเสธ/คำถาม · is=1 สิ่ง are=หลายสิ่ง","past":"I/He/She/It → was · You/We/They → were"};
+const M=(q,o,a,e)=>({q,o,a,e});
+const BANK={
+ "pp-form":[M("My sister ___ never been to Phuket.",["have","has","is","did"],1,"sister = She → has"),M("___ they ever played badminton?",["Has","Have","Did","Are"],1,"they → Have"),M("Have you ever cooked pad thai? — Yes, I ___.",["have","did","has","do"],0,"ถามด้วย Have → ตอบ have"),M("He has never ___ a snake.",["see","saw","seen","seeing"],2,"has never + V3"),M("I ___ eaten durian. It smells bad!",["haven't never","have never","has never","never have"],1,"I have never + V3"),M("Has your dad ever ___ a motorbike?",["ride","rode","ridden","riding"],2,"ride → rode → ridden")],
+ "pp-vs-ps":[M("I ___ my grandma last weekend.",["have visited","visited","visit","have visit"],1,"last weekend → Past Simple"),M("___ you ever tried mango sticky rice?",["Did","Have","Do","Has"],1,"ever + ไม่บอกเวลา → Have"),M("She ___ to Korat in 2023.",["has moved","moved","moves","has move"],1,"in 2023 → Past Simple"),M("Have you ever been to the zoo? — Yes. I ___ there last month.",["have gone","went","go","have been"],1,"last month → went"),M("When ___ you start learning English?",["have","did","has","do"],1,"When…? → did"),M("Which sentence is correct?",["I have seen him yesterday.","I saw him yesterday.","I have saw him.","I seen him yesterday."],1,"yesterday → Past Simple")],
+ "for-since":[M("I have known Jenny ___ 2022.",["for","since","ago","from"],1,"2022 = จุดเริ่ม → since"),M("He has played the guitar ___ three years.",["since","for","ago","in"],1,"three years = ระยะเวลา → for"),M("We have lived here ___ I was born.",["for","since","ago","yet"],1,"since + เหตุการณ์จุดเริ่ม"),M("She has worked at the hospital ___ a long time.",["since","for","ago","already"],1,"a long time = ระยะเวลา → for"),M("They have been friends ___ they were in ป.1.",["for","since","ago","in"],1,"จุดเริ่ม → since")],
+ "already-yet":[M("Have you done your homework ___?",["already","yet","since","ever"],1,"คำถาม + ท้ายประโยค → yet"),M("I have ___ seen this movie. Let's watch another one.",["yet","already","ever","since"],1,"ทำแล้ว → already"),M("She hasn't arrived ___.",["already","yet","ever","for"],1,"ปฏิเสธ → yet"),M("We have ___ finished. Can we go now?",["yet","already","since","ever"],1,"บอกเล่า ทำแล้ว → already"),M("Has the bus come ___?",["already","yet","since","for"],1,"คำถาม → yet")],
+ "ps":[M("My dad ___ coffee every morning.",["drink","drinks","drinking","is drink"],1,"He + V-s"),M("___ she like cats?",["Do","Does","Is","Are"],1,"she → Does"),M("He ___ TV on weekdays.",["doesn't watch","don't watch","doesn't watches","not watch"],0,"doesn't + V1"),M("The baby ___ a lot at night.",["cry","crys","cries","crying"],2,"y → ies")],
+ "pc":[M("Look! The children ___ in the rain.",["play","plays","are playing","played"],2,"Look! → are playing"),M("Listen! Someone ___ the piano.",["is playing","plays","play","played"],0,"Listen! → is playing"),M("What ___ you doing now?",["do","are","is","does"],1,"you → are"),M("She is ___ a letter now.",["write","writing","writes","wrote"],1,"write → writing")],
+ "pcont":[M("They ___ football when it started to rain.",["was playing","were playing","are playing","play"],1,"They → were + V-ing"),M("She was cooking when the phone ___.",["rings","was ringing","rang","ring"],2,"จุด → V2"),M("___ I was walking home, I saw my teacher.",["While","During","At","Because"],0,"while + เส้นยาว"),M("At 7 am yesterday, my brother ___ breakfast.",["is eating","was eating","were eating","eats"],1,"brother → was eating")],
+ "v2":[M("V2 of “catch”",["catched","caught","cought","catch"],1,"catch → caught"),M("V2 of “think”",["thinked","thought","taught","thank"],1,"think → thought"),M("V2 of “bring”",["bringed","brang","brought","bought"],2,"bring → brought"),M("V2 of “swim”",["swum","swam","swimmed","swims"],1,"swim → swam")],
+ "wh":[M("___ is your birthday? — In May.",["What","When","Where","Who"],1,"เวลา → When"),M("___ phone is this? — It's Tom's.",["Who","Whose","Which","What"],1,"ของใคร → Whose"),M("___ do you go to school? — By bike.",["What","How","Where","When"],1,"วิธีการ → How"),M("___ are you late? — Because I missed the bus.",["Why","How","When","What"],0,"Because → Why")],
+ "fut":[M("I think it ___ rain tomorrow.",["will","is","does","was"],0,"I think → will"),M("Look at those clouds! It's ___ rain.",["going to","will","go","goes to"],0,"หลักฐาน → going to"),M("We bought tickets. We ___ watch a movie tonight.",["are going to","will to","went","were"],0,"มีแผน → are going to"),M("He will ___ a doctor in the future.",["is","be","being","been"],1,"will + V1")],
+ "some":[M("There isn't ___ milk.",["some","any","no","a"],1,"ปฏิเสธ → any"),M("I have ___ pencils.",["some","any","a","an"],0,"บอกเล่า → some"),M("Do you have ___ brothers?",["some","any","a","every"],1,"คำถาม → any"),M("There ___ some apples in the box.",["is","are","am","has"],1,"apples → are")],
+ "past":[M("We ___ at the beach yesterday.",["was","were","are","is"],1,"We → were"),M("He ___ tired after the game.",["were","was","is","are"],1,"He → was"),M("I ___ at home last night.",["was","were","am","are"],0,"I → was"),M("___ you at school yesterday?",["Was","Were","Did","Are"],1,"you → Were")],
+};
+const V3=Object.fromEntries(CLASS.v3.map(([a,b])=>[a,b.split("|")]));
+const P=new URLSearchParams(location.search);
+const NAME=P.get("n")||"",LV=P.get("lv")==="ch"?"ch":"core",DATE=P.get("d")||"";
+const MISS=(P.get("m")||"").split(",").filter(Boolean),WEAK=(P.get("t")||"").split(",").filter(t=>BANK[t]||t==="v3"),VW=(P.get("v")||"").split(",").filter(v=>V3[v]);
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function mixOpts(q){const idx=shuffle(q.o.map((_,i)=>i));return {...q,o:idx.map(i=>q.o[i]),a:idx.indexOf(q.a)}}
+/* build plan */
+const parts=[];
+const missQs=MISS.map(id=>{const [set,i]=id.split("-");const q=(CLASS[set]||[])[+i];return q&&!q.text?mixOpts({...q}):null}).filter(Boolean);
+if(missQs.length)parts.push({title:"แก้ข้อที่พลาดในห้อง",desc:"ข้อเดิมจากเกมในคาบ ลองใหม่อีกครั้ง",qs:missQs});
+let focus=WEAK.filter(t=>t!=="v3");
+if(!focus.length)focus=LV==="ch"?["for-since","already-yet"]:["pp-vs-ps","pp-form"];
+const fq=[];focus.slice(0,3).forEach(t=>shuffle(BANK[t]).slice(0,WEAK.length?5:4).forEach(q=>fq.push({...mixOpts(q),tag:t})));
+parts.push({title:WEAK.length?"ฝึกเรื่องที่ยังไม่แม่น":"โจทย์ท้าทาย",desc:focus.slice(0,3).map(t=>TAGS[t]).join(" · "),qs:shuffle(fq),rules:focus.slice(0,3)});
+const v3n=(WEAK.includes("v3")||VW.length>2)?12:8;
+const v3list=[...VW,...shuffle(Object.keys(V3).filter(v=>!VW.includes(v)))].slice(0,v3n);
+parts.push({title:"ฝึก V3",desc:VW.length?"มีคำที่พิมพ์ผิดในเกม Mission Unlock รวมอยู่ด้วย":"พิมพ์กริยาช่อง 3",qs:shuffle(v3list).map(v=>({type:"text",q:`V3 ของ “${v}” คือ?`,ans:V3[v],e:`${v} → ${V3[v][0]}`}))});
+parts.push({title:"งานเขียน",writing:true,desc:LV==="ch"?"ตอบคำถามสัมภาษณ์ 2–3 ประโยค":"เขียนเรื่องของตัวเอง 5 ประโยค"});
+/* state */
+let pi=-1,qi=0,locked=false;const score=parts.map(()=>[0,0]);let writing="";const wrongLog=[];
+const app=document.getElementById("app");
+function intro(){
+  if(!NAME){app.innerHTML=`<div class="card"><h1>ลิงก์ไม่ครบ</h1><p class="muted">ขอลิงก์การบ้านของตัวเองจากครูฟลุ๊คใน LINE นะ</p></div>`;return}
+  app.innerHTML=`<div class="card"><h1>การบ้านของ ${esc(NAME)} ✏️</h1><div class="muted">Have you ever…? (Present Perfect)${DATE?" · คาบวันที่ "+esc(DATE):""}</div>
+  ${WEAK.length?`<div class="note">🎯 จากคาบวันนี้ ครูอยากให้ฝึกเพิ่ม: <b>${WEAK.map(t=>esc(TAGS[t])).join(" · ")}</b></div>`:`<div class="note">🌟 วันนี้ทำได้ดีมาก! การบ้านนี้เป็นโจทย์ท้าทายเพิ่ม</div>`}
+  <div class="plan">${parts.map((p,i)=>`<div class="step"><b>${i+1}</b><div><div><b style="color:var(--navy);font-size:17px;font-family:Sarabun">${p.title}</b>${p.qs?` · ${p.qs.length} ข้อ`:""}</div><div class="muted">${esc(p.desc)}</div></div></div>`).join("")}</div>
+  <button class="go" onclick="next()">เริ่มทำการบ้าน →</button><div class="muted">ทำครบแล้วจะมีปุ่มคัดลอกผลไปส่งครูใน LINE</div></div>`}
+function next(){pi++;qi=0;if(pi>=parts.length)return finish();const p=parts[pi];if(p.writing)return writeView();
+  if(p.rules){app.innerHTML=`<div class="card"><div class="tag">ส่วนที่ ${pi+1} · ${p.title}</div><h2>ทบทวนกฎก่อนทำ</h2>${p.rules.map(t=>`<div class="note"><b>${esc(TAGS[t])}</b><br>${esc(RULE[t])}</div>`).join("")}<button class="go" onclick="qView()">พร้อมแล้ว →</button></div>`;return}
+  qView()}
+function qView(){const p=parts[pi],q=p.qs[qi];locked=false;
+  app.innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><span class="tag">ส่วนที่ ${pi+1} · ${p.title}</span><span class="muted">${qi+1}/${p.qs.length}</span></div><div class="prog"><i style="width:${qi/p.qs.length*100}%"></i></div>
+  <div class="q">${esc(q.q)}</div>
+  ${q.type==="text"?`<form class="row" id="tf"><input type="text" id="ti" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="พิมพ์คำตอบ" style="flex:1"><button class="go" type="submit" id="tb">ตรวจ</button></form>`:`<div class="opts">${q.o.map((o,k)=>`<button class="opt" id="o${k}" onclick="ans(${k})">${esc(o)}</button>`).join("")}</div>`}
+  <div id="fb"></div><button class="go" id="nx" hidden onclick="step()">${qi+1<p.qs.length?"ข้อต่อไป →":"ไปส่วนต่อไป →"}</button></div>`;
+  const tf=document.getElementById("tf");if(tf){tf.onsubmit=e=>{e.preventDefault();ansText()};document.getElementById("ti").focus()}}
+function mark(ok,right,e){const p=parts[pi],q=p.qs[qi];if(!q.retry){score[pi][1]++;if(ok)score[pi][0]++}if(!ok){if(!q.retry)wrongLog.push(q.q+" → "+right);if((q.rt||0)<2)p.qs.push({...q,retry:true,rt:(q.rt||0)+1})}
+  document.getElementById("fb").innerHTML=`<div class="fb ${ok?"ok":"no"}"><b>${ok?"ถูกต้อง! 🎉":"ยังไม่ถูก"}</b>${ok?"":" · คำตอบ: <b>"+esc(right)+"</b> (ข้อนี้จะวนกลับมาอีกครั้ง)"}<br>${esc(e||"")}</div>`;
+  locked=true;const nx=document.getElementById("nx");nx.hidden=false;nx.textContent=qi+1<p.qs.length?"ข้อต่อไป →":"ไปส่วนต่อไป →";nx.focus()}
+function ans(k){if(locked)return;const q=parts[pi].qs[qi];q.o.forEach((_,j)=>{const b=document.getElementById("o"+j);b.disabled=true;if(j===q.a)b.classList.add("right");else if(j===k)b.classList.add("wrong")});mark(k===q.a,q.o[q.a],q.e)}
+function ansText(){if(locked)return;const q=parts[pi].qs[qi],el=document.getElementById("ti"),v=el.value.trim().toLowerCase();if(!v)return;el.disabled=true;document.getElementById("tb").disabled=true;mark(q.ans.includes(v),q.ans[0],q.e)}
+function step(){qi++;if(qi<parts[pi].qs.length)qView();else next()}
+function writeView(){const ch=LV==="ch";
+  app.innerHTML=`<div class="card"><span class="tag">ส่วนที่ ${pi+1} · งานเขียน</span>
+  ${ch?`<h2>IEC interview practice 🎤</h2><div class="note">ตอบแต่ละข้อ 2–3 ประโยค: เริ่มด้วย Present Perfect แล้วเล่าต่อด้วย Past Simple<br><i>Yes, I have. I went to Japan in 2024. It was amazing because…</i></div>
+  <b>Q1: Have you ever done something exciting?</b><textarea id="w1" rows="4"></textarea><b>Q2: What is something you have never done, but want to try? Why?</b><textarea id="w2" rows="4"></textarea>`
+  :`<h2>5 things about me ✍️</h2><div class="note">เคยทำ 3 ข้อ (I have …) และไม่เคยทำ 2 ข้อ (I have never …)<br><i>I have been to Korat Zoo. · I have never eaten sushi.</i></div>${[1,2,3].map(i=>`<input type="text" id="w${i}" placeholder="${i}. I have …">`).join("")}${[4,5].map(i=>`<input type="text" id="w${i}" placeholder="${i}. I have never …">`).join("")}`}
+  <button class="go" onclick="saveW(${ch?2:5})">ส่งงานเขียน →</button></div>`}
+function saveW(n){const L=[];for(let i=1;i<=n;i++){const v=(document.getElementById("w"+i).value||"").trim();if(v)L.push((LV==="ch"?"Q"+i+": ":i+". ")+v)}writing=L.join("\n");next()}
+function finish(){const quiz=score.filter((s,i)=>!parts[i].writing);const c=quiz.reduce((a,s)=>a+s[0],0),n=quiz.reduce((a,s)=>a+s[1],0);
+  const txt=`📘 ENG Spark Homework · ${NAME}\n🌍 Have you ever…?${DATE?" ("+DATE+")":""}\n✅ ถูกครั้งแรก ${c}/${n} (${n?Math.round(c/n*100):0}%)\n${parts.map((p,i)=>p.writing?"":`• ${p.title}: ${score[i][0]}/${score[i][1]}`).filter(Boolean).join("\n")}\n${wrongLog.length?"\n❗ ข้อที่พลาด (แก้แล้ว):\n"+wrongLog.slice(0,8).map(w=>"- "+w).join("\n")+"\n":""}\n✍️ งานเขียน:\n${writing||"(ยังไม่ได้เขียน)"}`;
+  app.innerHTML=`<div class="card"><h1>เสร็จแล้ว! 🎉</h1><div class="row"><span class="big">${n?Math.round(c/n*100):0}%</span><span class="muted">ถูกตั้งแต่ครั้งแรก ${c}/${n} ข้อ · ข้อที่ผิดได้แก้ซ้ำจนถูกแล้ว</span></div>
+  <textarea id="out" rows="12" readonly>${esc(txt)}</textarea><div class="row"><button class="go" id="cp">📋 คัดลอกผล</button><span class="muted" id="cpm"></span></div>
+  <div class="note">วางผลนี้ส่งครูฟลุ๊คในแชท LINE ได้เลย 💬</div><button class="alt" onclick="location.reload()">ทำใหม่อีกรอบ (โจทย์จะสุ่มใหม่)</button></div>`;
+  document.getElementById("cp").onclick=()=>{const t=document.getElementById("out");const ok=()=>document.getElementById("cpm").textContent="คัดลอกแล้ว ✅";try{navigator.clipboard.writeText(t.value).then(ok,()=>{t.select();document.execCommand("copy");ok()})}catch(e){t.select();document.execCommand("copy");ok()}}}
+intro();
+</script>
+</body>
+</html>
